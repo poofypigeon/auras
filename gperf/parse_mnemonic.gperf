@@ -1,0 +1,108 @@
+%{
+#include "stdint.h"
+#include "stddef.h"
+#include "string.h"
+
+enum mnemonic_t {
+    invalid,
+    ld,   ldb,  ldh,  ldsb, ldsh,
+    st,   stb,  sth,  stsb, stsh,
+    smv,  scl,  sst,  
+    add,  adc,  sub,  sbc,  and,  or,  xor,  btc, 
+    addk, adck, subk, sbck, andk, ork, xork, btck,
+    nop, 
+    tst,  teq,  cmp,  cpn, 
+    lsl,  lsr,  asr,  lslk,
+    mov,  not,  notk, 
+    b,    beq,  bne,  bcs,  bcc,  bmi,  bpl,  bvs,  bvc,  bhi,  bls,  bge,  blt,  bgt,  ble, 
+    bl,   bleq, blne, blcs, blcc, blmi, blpl, blvs, blvc, blhi, blls, blge, bllt, blgt, blle,
+    mvi,
+    swi, 
+    m32, 
+};
+
+%}
+struct mnemonic_token {
+    char* name;
+    enum mnemonic_t mnemonic;
+};
+%%
+ld,   ld
+ldb,  ldb
+ldh,  ldh
+ldsb, ldsb
+ldsh, ldsh
+st,   st
+stb,  stb
+sth,  sth
+stsb, stsb
+stsh, stsh
+smv,  smv
+scl,  scl
+sst,  sst
+add,  add
+adc,  adc
+sub,  sub
+sbc,  sbc
+and,  and
+or,   or
+xor,  xor
+btc,  btc
+addk, addk
+adck, adck
+subk, subk
+sbck, sbck
+andk, andk
+ork,  ork
+xork, xork
+btck, btck
+nop,  nop
+tst,  tst
+teq,  teq
+cmp,  cmp
+cpn,  cpn
+lsl,  lsl
+lsr,  lsr
+asr,  asr
+lslk, lslk
+mov,  mov
+not,  not
+notk, notk
+b,    b
+beq,  beq
+bne,  bne
+bcs,  bcs
+bcc,  bcc
+bmi,  bmi
+bpl,  bpl
+bvs,  bvs
+bvc,  bvc
+bhi,  bhi
+bls,  bls
+bge,  bge
+blt,  blt
+bgt,  bgt
+ble,  ble
+bl,   bl
+bleq, bleq
+blne, blne
+blcs, blcs
+blcc, blcc
+blmi, blmi
+blpl, blpl
+blvs, blvs
+blvc, blvc
+blhi, blhi
+blls, blls
+blge, blge
+bllt, bllt
+blgt, blgt
+blle, blle
+mvi,  mvi
+swi,  swi
+m32,  m32
+%%
+int32_t parse_mnemonic(register const char* str, register size_t len) {
+    struct mnemonic_token * res = in_word_set(str, len);
+    return (res) ? (int32_t)res->mnemonic : (int32_t)invalid;
+}
