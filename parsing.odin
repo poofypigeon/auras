@@ -1,18 +1,21 @@
-package instruction
+package auras
 
 import "base:runtime"
 
 import "core:fmt"
-import "core:io"
+import "core:mem"
 import "core:strconv"
 import "core:strings"
 import "core:unicode"
 
 import "core:c"
-foreign import "gperf/parse_mnemonic.a"
+foreign import "gperf/perfect_hash.a"
 
 Mnemonic :: enum c.int32_t {
     invalid,
+    // Data arrays
+    word, half, byte, ascii, align,
+    // Instructions
     ld,   ldb,  ldh,  ldsb, ldsh,
     st,   stb,  sth,  stsb, stsh,
     smv,  scl,  sst,  
@@ -29,10 +32,25 @@ Mnemonic :: enum c.int32_t {
     m32, 
 }
 
-MAX_MNEMONIC_LEN :: 4
+MAX_MNEMONIC_LEN :: 5
 
-foreign parse_mnemonic {
+SIZE_OF_WORD :: 4
+SIZE_OF_HALF :: 2
+SIZE_OF_BYTE :: 1
+
+foreign perfect_hash {
     parse_mnemonic :: proc(str: cstring, len: c.size_t) -> Mnemonic ---
+}
+
+mnem_from_token :: proc(token: string) -> Mnemonic {
+    if len(token) > MAX_MNEMONIC_LEN {
+        return .invalid
+    }
+
+    buffer: [MAX_MNEMONIC_LEN+1]u8 = ---
+    mem.copy_non_overlapping(&buffer, raw_data(token), len(token))
+    buffer[len(token)] = 0
+    return parse_mnemonic(cstring(raw_data(buffer[:])), len(token))
 }
 
 Operand :: union {
@@ -64,11 +82,17 @@ Register :: enum {
 Symbol :: distinct string
 
 Line_Error :: union {
+    Unexpected_EOL,
     Unexpected_Token,
     Not_Encodable,
+    Redefinition,
 }
 
 quoted_string :: distinct string
+
+Unexpected_EOL :: struct {
+    column: uint,
+}
 
 Unexpected_Token :: struct {
     column: uint,
@@ -80,6 +104,10 @@ Not_Encodable :: struct {
     start_column: uint,
     end_column: uint,
     message: string
+}
+
+Redefinition :: struct {
+    label: string
 }
 
 expect_register :: proc(line: ^Tokenizer) -> (reg: Register, err: Line_Error) {
@@ -246,13 +274,31 @@ operand_str :: #force_inline proc(op: Operand) -> union { string, quoted_string 
 
 token_str :: #force_inline proc(token: string) -> union { string, quoted_string } {
     op, _ := parse_operand(token)
+    if symbol, ok := op.(Symbol); ok {
+        #partial switch mnem_from_token(string(symbol)) {
+        case .invalid, .word, .half, .byte, .ascii, .align:
+            return quoted_string(op.(Symbol))
+        case:
+            return string("mnemonic")
+        }
+    }
     return operand_str(op)
 }
 
 print_line_error :: proc(line: string, err: Line_Error) {
+    line := long_string_trail_off(line)
+    defer delete(line)
+
     fmt.print("\x1B[31merror: \x1B[0m", flush = false)
 
     switch e in err {
+    case Unexpected_EOL:
+        fmt.print("unexpected 'eol'", flush = false)
+        fmt.println(line, flush = false)
+        for i in 0..<e.column {
+            fmt.print(" ", sep = "", flush = false)
+        }
+        fmt.println("\x1B[32m^\x1B[0m")
     case Unexpected_Token:
         fmt.print("expected ", flush = false)
         switch expected in e.expected {
@@ -279,24 +325,30 @@ print_line_error :: proc(line: string, err: Line_Error) {
             case string: fmt.println(found, flush = false)
             case quoted_string: fmt.printfln("'%s'", found, flush = false)
         }
-        fmt.println(line)
+        fmt.println(line, flush = false)
         for i in 0..<e.column {
             fmt.print(" ", sep = "", flush = false)
         }
-        fmt.print("\x1B[32m^\x1B[0m")
-        fmt.println()
+        fmt.println("\x1B[32m^\x1B[0m")
     case Not_Encodable:
-        fmt.println(e.message)
-        fmt.println(line)
+        fmt.println(e.message, flush = false)
+        fmt.println(line, flush = false)
         for i in 0..<e.start_column {
             fmt.print(" ", sep = "", flush = false)
         }
-        fmt.print("\x1B[32m^")
+        fmt.print("\x1B[32m^", flush = false)
         for i in e.start_column+1..<e.end_column {
             fmt.print("~", sep = "", flush = false)
         }
-        fmt.print("\x1B[0m")
-        fmt.println()
+        fmt.println("\x1B[0m")
+    case Redefinition:
+        fmt.printfln("redefinition of '%s'", e.label, flush = false)
+    }
+
+    long_string_trail_off :: #force_inline proc(str: string) -> string {
+        if len(str) > 64 {
+            return strings.concatenate([]string{ str[:64], "\x1B[90m...\x1B[0m" })
+        }
+        return strings.clone(str)
     }
 }
-

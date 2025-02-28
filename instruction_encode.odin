@@ -1,11 +1,6 @@
-package instruction
+package auras
 
-import "base:runtime"
-
-import "core:fmt"
 import "core:math/bits"
-import "core:mem"
-
 
 Instruction :: struct {
     machine_word: u32le,
@@ -582,6 +577,7 @@ encode_branch :: proc(line: ^Tokenizer, flags: Branch_Encoding) -> (instr: Instr
     case Register:
         machine_word.offset = uint(v)
     case Symbol:
+        machine_word.i = true
         relocation_symbol = string(v)
     case uint, string:
         return Instruction{}, Unexpected_Token{
@@ -620,9 +616,7 @@ encode_move_immediate :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Lin
 
     _ = expect_token(line, ",") or_return
 
-
     _, machine_word.m = optional_token(line, "-")
-
     immediate_start_column := line.token_start
 
     imm := expect_integer(line) or_return
@@ -753,20 +747,7 @@ encode_m32 :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Line_Error) {
 //===----------------------------------------------------------===//
 
 
-encode_instruction :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Line_Error) {
-    token, ok := tokenizer_next(line)
-    if len(token) > MAX_MNEMONIC_LEN {
-        return Instruction{}, Unexpected_Token{
-            column = line.token_start,
-            expected = "mnemonic", found = token_str(token)
-        }
-    }
-
-    buffer: [MAX_MNEMONIC_LEN+1]u8 = ---
-    mem.copy_non_overlapping(&buffer, raw_data(token), len(token))
-    buffer[len(token)] = 0
-    mnem := parse_mnemonic(cstring(raw_data(buffer[:])), len(token))
-
+encode_instruction :: proc(line: ^Tokenizer, mnem: Mnemonic) -> (instr: Instruction, err: Line_Error) {
     switch mnem {
     // Data Transfer
     case .ld:   instr = encode_data_transfer(line, Data_Transfer_Encoding{                              }) or_return
@@ -854,18 +835,7 @@ encode_instruction :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Line_E
     case .swi:  instr = encode_software_interrupt(line) or_return
     // m32 Pseudo-Instruction
     case .m32:  instr = encode_m32(line) or_return
-    case .invalid:
-        return Instruction{}, Unexpected_Token{
-            column = line.token_start,
-            expected = "mnemonic", found = token_str(token)
-        }
-    }
-
-    if token, ok = tokenizer_next(line); ok {
-        return Instruction{}, Unexpected_Token{
-            column = line.token_start,
-            expected = "'eol'", found = token_str(token)
-        }
+    case .invalid, .word, .half, .byte, .ascii, .align:
     }
 
     return instr, nil

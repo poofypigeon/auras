@@ -1,5 +1,5 @@
 #!/bin/sh
-gperf -tc7 parse_mnemonic.gperf --output-file=parse_mnemonic.c
-clang -O3 -g0 -c parse_mnemonic.c
-ar -rcs parse_mnemonic.a parse_mnemonic.o
-rm parse_mnemonic.o
+gperf -tc7 perfect_hash.gperf --output-file=perfect_hash.c
+clang -O3 -g0 -c perfect_hash.c
+ar -rcs perfect_hash.a perfect_hash.o
+rm perfect_hash.o
