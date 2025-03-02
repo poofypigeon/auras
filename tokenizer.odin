@@ -1,8 +1,5 @@
-package instruction
+package auras
 
-import "base:runtime"
-
-import "core:fmt"
 import "core:unicode"
 
 Tokenizer :: struct {

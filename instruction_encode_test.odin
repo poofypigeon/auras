@@ -1,14 +1,21 @@
-package instruction
+package auras
 
 import "core:testing"
 
 @(private = "file")
 produces_unexpected_token_error :: #force_inline proc(str: string) -> bool {
-    _, err := encode_instruction(&Tokenizer{ line = str })
+    line := Tokenizer{ line = str }
+    token, ok := tokenizer_next(&line)
+    if !ok {
+        return false
+    }
+    mnem := mnem_from_token(token)
+    _, err := encode_instruction(&line, mnem)
     if err == nil {
         return false
     }
-    e, ok := err.(Unexpected_Token)
+    e: Unexpected_Token = ---
+    e, ok = err.(Unexpected_Token)
     if ok {
         #partial switch expected in e.expected {
         case [dynamic]string: delete(expected)
@@ -19,17 +26,29 @@ produces_unexpected_token_error :: #force_inline proc(str: string) -> bool {
 
 @(private = "file")
 produces_not_encodable_error :: #force_inline proc(str: string) -> bool {
-    _, err := encode_instruction(&Tokenizer{ line = str })
+    line := Tokenizer{ line = str }
+    token, ok := tokenizer_next(&line)
+    if !ok {
+        return false
+    }
+    mnem := mnem_from_token(token)
+    _, err := encode_instruction(&line, mnem)
     if err == nil {
         return false
     }
-    _, ok := err.(Not_Encodable)
+    _, ok = err.(Not_Encodable)
     return ok
 }
 
 @(private = "file")
 machine_word :: #force_inline proc(str: string) -> u32le {
-    instr, err := encode_instruction(&Tokenizer{ line = str })
+    line := Tokenizer{ line = str }
+    token, ok := tokenizer_next(&line)
+    if !ok {
+        return ~u32le(0)
+    }
+    mnem := mnem_from_token(token)
+    instr, err := encode_instruction(&line, mnem)
     if err != nil {
         return ~u32le(0)
     }
@@ -38,16 +57,28 @@ machine_word :: #force_inline proc(str: string) -> u32le {
 
 @(private = "file")
 instruction :: #force_inline proc(str: string) -> Instruction {
-    instr, err := encode_instruction(&Tokenizer{ line = str })
+    line := Tokenizer{ line = str }
+    token, ok := tokenizer_next(&line)
+    if !ok {
+        return Instruction{ machine_word = ~u32le(0) }
+    }
+    mnem := mnem_from_token(token)
+    instr, err := encode_instruction(&line, mnem)
     if err != nil {
         return Instruction{ machine_word = ~u32le(0) }
     }
     return instr
 }
 
-@(test)
-test_invalid_mnemonic :: proc(t: ^testing.T) {
-    testing.expect(t, produces_unexpected_token_error("bad"))
+@(private = "file")
+instruction_and_error :: #force_inline proc(str: string) -> (instr: Instruction, err: Line_Error) {
+    line := Tokenizer{ line = str }
+    token, ok := tokenizer_next(&line)
+    if !ok {
+        return Instruction{ machine_word = ~u32le(0) }, nil
+    }
+    mnem := mnem_from_token(token)
+    return encode_instruction(&line, mnem)
 }
 
 
@@ -108,16 +139,16 @@ test_data_transfer_unencodable_shift :: proc(t: ^testing.T) {
 
 @(test)
 test_data_transfer_mnemonic_variants :: proc(t: ^testing.T) {
-    testing.expect_value(t, machine_word("ld   r1, [r2]"), u32le(0x0120_0000))
-    testing.expect_value(t, machine_word("ldb  r1, [r2]"), u32le(0x0120_8000))
-    testing.expect_value(t, machine_word("ldsb r1, [r2]"), u32le(0x0124_8000))
-    testing.expect_value(t, machine_word("ldh  r1, [r2]"), u32le(0x0121_0000))
-    testing.expect_value(t, machine_word("ldsh r1, [r2]"), u32le(0x0125_0000))
-    testing.expect_value(t, machine_word("st   r1, [r2]"), u32le(0x2120_0000))
-    testing.expect_value(t, machine_word("stb  r1, [r2]"), u32le(0x2120_8000))
-    testing.expect_value(t, machine_word("stsb r1, [r2]"), u32le(0x2124_8000))
-    testing.expect_value(t, machine_word("sth  r1, [r2]"), u32le(0x2121_0000))
-    testing.expect_value(t, machine_word("stsh r1, [r2]"), u32le(0x2125_0000))
+    testing.expect_value(t, machine_word("ld   r1, [r2]"), 0x0120_0000)
+    testing.expect_value(t, machine_word("ldb  r1, [r2]"), 0x0120_8000)
+    testing.expect_value(t, machine_word("ldsb r1, [r2]"), 0x0124_8000)
+    testing.expect_value(t, machine_word("ldh  r1, [r2]"), 0x0121_0000)
+    testing.expect_value(t, machine_word("ldsh r1, [r2]"), 0x0125_0000)
+    testing.expect_value(t, machine_word("st   r1, [r2]"), 0x2120_0000)
+    testing.expect_value(t, machine_word("stb  r1, [r2]"), 0x2120_8000)
+    testing.expect_value(t, machine_word("stsb r1, [r2]"), 0x2124_8000)
+    testing.expect_value(t, machine_word("sth  r1, [r2]"), 0x2121_0000)
+    testing.expect_value(t, machine_word("stsh r1, [r2]"), 0x2125_0000)
 }
 
 @(test)
@@ -183,7 +214,6 @@ test_move_from_psr_unexpected_eol :: proc(t: ^testing.T) {
 @(test)
 test_move_from_psr_unexpected_token :: proc(t: ^testing.T) {
     testing.expect(t, produces_unexpected_token_error("smv!"))
-    testing.expect(t, produces_unexpected_token_error("smv r1!"))
 }
 
 @(test)
@@ -204,9 +234,7 @@ test_set_clear_psr_bits_unexpected_eol :: proc(t: ^testing.T) {
 @(test)
 test_set_clear_psr_bits_unexpected_token :: proc(t: ^testing.T) {
     testing.expect(t, produces_unexpected_token_error("sst!"))
-    testing.expect(t, produces_unexpected_token_error("sst r1!"))
     testing.expect(t, produces_unexpected_token_error("scl!"))
-    testing.expect(t, produces_unexpected_token_error("scl r1!"))
 }
 
 @(test)
@@ -250,8 +278,6 @@ test_data_processing_unexpected_token :: proc(t: ^testing.T) {
     testing.expect(t, produces_unexpected_token_error("add r1, r2,!"))
     testing.expect(t, produces_unexpected_token_error("add r1, r2, r3!"))
     testing.expect(t, produces_unexpected_token_error("add r1, r2, r3 lsl!"))
-    testing.expect(t, produces_unexpected_token_error("add r1, r2, r3 lsl r4!"))
-    testing.expect(t, produces_unexpected_token_error("add r1, r2, r3 lsl 4!"))
 }
 
 @(test)
@@ -344,7 +370,6 @@ test_data_processing_pseudo_unexpected_eol :: proc(t: ^testing.T) {
 
 @(test)
 test_data_processing_pseudo_unexpected_token :: proc(t: ^testing.T) {
-    testing.expect(t, produces_unexpected_token_error("nop!"))
     testing.expect(t, produces_unexpected_token_error("tst!"))
     testing.expect(t, produces_unexpected_token_error("tst r1!"))
     testing.expect(t, produces_unexpected_token_error("tst r1,!"))
@@ -354,12 +379,10 @@ test_data_processing_pseudo_unexpected_token :: proc(t: ^testing.T) {
     testing.expect(t, produces_unexpected_token_error("lsl r1!"))
     testing.expect(t, produces_unexpected_token_error("lsl r1,!"))
     testing.expect(t, produces_unexpected_token_error("lsl r1, r2,!"))
-    testing.expect(t, produces_unexpected_token_error("lsl r1, r2, r3!"))
     testing.expect(t, produces_unexpected_token_error("mov!"))
     testing.expect(t, produces_unexpected_token_error("mov,!"))
     testing.expect(t, produces_unexpected_token_error("mov r1!"))
     testing.expect(t, produces_unexpected_token_error("mov r1,!"))
-    testing.expect(t, produces_unexpected_token_error("mov r1, r2!"))
 }
 
 @(test)
@@ -390,8 +413,6 @@ test_branch_unexpected_eol :: proc(t: ^testing.T) {
 @(test)
 test_branch_unexpected_token :: proc(t: ^testing.T) {
     testing.expect(t, produces_unexpected_token_error("b!"))
-    testing.expect(t, produces_unexpected_token_error("b r1!"))
-    testing.expect(t, produces_unexpected_token_error("b label!"))
 }
 
 @(test)
@@ -430,36 +451,36 @@ test_branch_register_variants :: proc(t: ^testing.T) {
 
 @(test)
 test_branch_label_variants :: proc(t: ^testing.T) {
-    testing.expect_value(t, instruction("beq  symbol"), Instruction{ machine_word = 0x8000_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bne  symbol"), Instruction{ machine_word = 0x8100_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bcs  symbol"), Instruction{ machine_word = 0x8200_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bcc  symbol"), Instruction{ machine_word = 0x8300_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bmi  symbol"), Instruction{ machine_word = 0x8400_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bpl  symbol"), Instruction{ machine_word = 0x8500_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bvs  symbol"), Instruction{ machine_word = 0x8600_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bvc  symbol"), Instruction{ machine_word = 0x8700_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bhi  symbol"), Instruction{ machine_word = 0x8800_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bls  symbol"), Instruction{ machine_word = 0x8900_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bge  symbol"), Instruction{ machine_word = 0x8A00_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blt  symbol"), Instruction{ machine_word = 0x8B00_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bgt  symbol"), Instruction{ machine_word = 0x8C00_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("ble  symbol"), Instruction{ machine_word = 0x8D00_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("b    symbol"), Instruction{ machine_word = 0x8E00_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bleq symbol"), Instruction{ machine_word = 0xA000_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blne symbol"), Instruction{ machine_word = 0xA100_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blcs symbol"), Instruction{ machine_word = 0xA200_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blcc symbol"), Instruction{ machine_word = 0xA300_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blmi symbol"), Instruction{ machine_word = 0xA400_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blpl symbol"), Instruction{ machine_word = 0xA500_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blvs symbol"), Instruction{ machine_word = 0xA600_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blvc symbol"), Instruction{ machine_word = 0xA700_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blhi symbol"), Instruction{ machine_word = 0xA800_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blls symbol"), Instruction{ machine_word = 0xA900_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blge symbol"), Instruction{ machine_word = 0xAA00_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bllt symbol"), Instruction{ machine_word = 0xAB00_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blgt symbol"), Instruction{ machine_word = 0xAC00_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("blle symbol"), Instruction{ machine_word = 0xAD00_0000, relocation_symbol = "symbol" })
-    testing.expect_value(t, instruction("bl   symbol"), Instruction{ machine_word = 0xAE00_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("beq  symbol"), Instruction{ machine_word = 0x9000_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bne  symbol"), Instruction{ machine_word = 0x9100_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bcs  symbol"), Instruction{ machine_word = 0x9200_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bcc  symbol"), Instruction{ machine_word = 0x9300_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bmi  symbol"), Instruction{ machine_word = 0x9400_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bpl  symbol"), Instruction{ machine_word = 0x9500_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bvs  symbol"), Instruction{ machine_word = 0x9600_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bvc  symbol"), Instruction{ machine_word = 0x9700_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bhi  symbol"), Instruction{ machine_word = 0x9800_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bls  symbol"), Instruction{ machine_word = 0x9900_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bge  symbol"), Instruction{ machine_word = 0x9A00_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blt  symbol"), Instruction{ machine_word = 0x9B00_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bgt  symbol"), Instruction{ machine_word = 0x9C00_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("ble  symbol"), Instruction{ machine_word = 0x9D00_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("b    symbol"), Instruction{ machine_word = 0x9E00_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bleq symbol"), Instruction{ machine_word = 0xB000_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blne symbol"), Instruction{ machine_word = 0xB100_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blcs symbol"), Instruction{ machine_word = 0xB200_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blcc symbol"), Instruction{ machine_word = 0xB300_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blmi symbol"), Instruction{ machine_word = 0xB400_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blpl symbol"), Instruction{ machine_word = 0xB500_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blvs symbol"), Instruction{ machine_word = 0xB600_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blvc symbol"), Instruction{ machine_word = 0xB700_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blhi symbol"), Instruction{ machine_word = 0xB800_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blls symbol"), Instruction{ machine_word = 0xB900_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blge symbol"), Instruction{ machine_word = 0xBA00_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bllt symbol"), Instruction{ machine_word = 0xBB00_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blgt symbol"), Instruction{ machine_word = 0xBC00_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("blle symbol"), Instruction{ machine_word = 0xBD00_0000, relocation_symbol = "symbol" })
+    testing.expect_value(t, instruction("bl   symbol"), Instruction{ machine_word = 0xBE00_0000, relocation_symbol = "symbol" })
 }
 
 
@@ -478,7 +499,6 @@ test_move_immediate_unexpected_token :: proc(t: ^testing.T) {
     testing.expect(t, produces_unexpected_token_error("mvi!"))
     testing.expect(t, produces_unexpected_token_error("mvi r1!"))
     testing.expect(t, produces_unexpected_token_error("mvi r1,!"))
-    testing.expect(t, produces_unexpected_token_error("mvi r1, 0!"))
 }
 
 @(test)
@@ -501,7 +521,6 @@ test_move_immediate_encoding :: proc(t: ^testing.T) {
 @(test)
 test_software_interrupt_unexpected_token :: proc(t: ^testing.T) {
     testing.expect(t, produces_unexpected_token_error("swi!"))
-    testing.expect(t, produces_unexpected_token_error("swi 0xAA!"))
 }
 
 @(test)
@@ -530,7 +549,6 @@ test_m32_unexpected_token :: proc(t: ^testing.T) {
     testing.expect(t, produces_unexpected_token_error("m32!"))
     testing.expect(t, produces_unexpected_token_error("m32 r1!"))
     testing.expect(t, produces_unexpected_token_error("m32 r1,!"))
-    testing.expect(t, produces_unexpected_token_error("m32 r1, 0!"))
 }
 
 @(test)
@@ -541,31 +559,31 @@ test_m32_unencodable_value :: proc(t: ^testing.T) {
 
 @(test)
 test_m32_encoding :: proc(t: ^testing.T) {
-    instr, err := encode_instruction(&Tokenizer{ line = "m32 r1, 0xAA_AAAA" })
+    instr, err := instruction_and_error("m32 r1, 0xAA_AAAA")
     testing.expect(t, err == nil)
     testing.expect_value(t, instr.machine_word,      0xC1AA_AAAA)
     testing.expect_value(t, instr.machine_word2,     nil)
     testing.expect_value(t, instr.relocation_symbol, nil)
 
-    instr, err = encode_instruction(&Tokenizer{ line = "m32 r1, -1" })
+    instr, err = instruction_and_error("m32 r1, -1")
     testing.expect(t, err == nil)
     testing.expect_value(t, instr.machine_word,      0xD1FF_FFFF)
     testing.expect_value(t, instr.machine_word2,     nil)
     testing.expect_value(t, instr.relocation_symbol, nil)
 
-    instr, err = encode_instruction(&Tokenizer{ line = "m32 r1, 0xDEAD_BEEF" })
+    instr, err = instruction_and_error("m32 r1, 0xDEAD_BEEF")
     testing.expect(t, err == nil)
     testing.expect_value(t, instr.machine_word,  0xC1AD_BEEF)
     testing.expect_value(t, instr.machine_word2, 0x7101_60DE)
     testing.expect_value(t, instr.relocation_symbol, nil)
 
-    instr, err = encode_instruction(&Tokenizer{ line = "m32 r1, -0x5555_5555" })
+    instr, err = instruction_and_error("m32 r1, -0x5555_5555")
     testing.expect(t, err == nil)
     testing.expect_value(t, instr.machine_word,  0xC1AA_AAAB)
     testing.expect_value(t, instr.machine_word2, 0x7101_60AA)
     testing.expect_value(t, instr.relocation_symbol, nil)
 
-    instr, err = encode_instruction(&Tokenizer{ line = "m32 r1, symbol" })
+    instr, err = instruction_and_error("m32 r1, symbol")
     testing.expect(t, err == nil)
     testing.expect_value(t, instr.machine_word,  0xC100_0000)
     testing.expect_value(t, instr.machine_word2, 0x7101_6000)
