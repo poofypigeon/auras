@@ -28,47 +28,6 @@ test_empty_line :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_instruction_extraneous_token :: proc(t: ^testing.T) {
-    file := create_source_file()
-    defer cleanup_source_file(&file)
-
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    b label!"))
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    nop!"))
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    add r1, r2, r3 lsl r4!"))
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    add r1, r2, r3 lsl 4!"))
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    lsl r1, r2, r3!"))
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    b r1!"))
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    mov r1, r2!"))
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    smv r1!"))
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    m32 r1, 0!"))
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    swi 0xAA!"))
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    mvi r1, 0!"))
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    scl r1!"))
-    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    sst r1!"))
-}
-
-@(test)
-test_general_instruction :: proc(t: ^testing.T) {
-    file := create_source_file()
-    defer cleanup_source_file(&file)
-
-    err := process_line(&file, "    mvi r1, 0xAA")
-    testing.expect(t, err == nil)
-
-    // file.buffer
-    expected_buffer_word: u32le = 0xC100_00AA
-    testing.expect(t, bytes.compare(file.buffer[:], mem.ptr_to_bytes(&expected_buffer_word)) == 0)
-    // file.symbol_table
-    testing.expect_value(t, len(file.symbol_table), 0)
-    // file.relocation_table
-    testing.expect_value(t, len(file.relocation_table), 0)
-    // file.string_table
-    testing.expect_value(t, len(file.string_table), 0)
-    // file.symbol_map
-    testing.expect_value(t, len(file.symbol_map), 0)
-}
-
-@(test)
 test_local_label_non_label_character :: proc(t: ^testing.T) {
     file := create_source_file()
     defer cleanup_source_file(&file)
@@ -134,6 +93,47 @@ test_invalid_mnemonic :: proc(t: ^testing.T) {
     defer cleanup_source_file(&file)
 
     testing.expect(t, produces_unexpected_token_error(&file, "    bad"))
+}
+
+@(test)
+test_instruction_extraneous_token :: proc(t: ^testing.T) {
+    file := create_source_file()
+    defer cleanup_source_file(&file)
+
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    b label!"))
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    nop!"))
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    add r1, r2, r3 lsl r4!"))
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    add r1, r2, r3 lsl 4!"))
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    lsl r1, r2, r3!"))
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    b r1!"))
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    mov r1, r2!"))
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    smv r1!"))
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    m32 r1, 0!"))
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    swi 0xAA!"))
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    mvi r1, 0!"))
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    scl r1!"))
+    testing.expect(t, produces_unexpected_token_error(&Source_File{}, "    sst r1!"))
+}
+
+@(test)
+test_general_instruction :: proc(t: ^testing.T) {
+    file := create_source_file()
+    defer cleanup_source_file(&file)
+
+    err := process_line(&file, "    mvi r1, 0xAA")
+    testing.expect(t, err == nil)
+
+    // file.buffer
+    expected_buffer_word: u32le = 0xC100_00AA
+    testing.expect(t, bytes.compare(file.buffer[:], mem.ptr_to_bytes(&expected_buffer_word)) == 0)
+    // file.symbol_table
+    testing.expect_value(t, len(file.symbol_table), 0)
+    // file.relocation_table
+    testing.expect_value(t, len(file.relocation_table), 0)
+    // file.string_table
+    testing.expect_value(t, len(file.string_table), 0)
+    // file.symbol_map
+    testing.expect_value(t, len(file.symbol_map), 0)
 }
 
 @(test)
