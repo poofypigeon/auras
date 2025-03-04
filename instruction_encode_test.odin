@@ -525,13 +525,13 @@ test_software_interrupt_unexpected_token :: proc(t: ^testing.T) {
 
 @(test)
 test_software_interrupt_unencodable_value :: proc(t: ^testing.T) {
-    testing.expect(t, produces_not_encodable_error("swi 0x0001_BEEF"))
+    testing.expect(t, produces_not_encodable_error("swi 0xDEAD_BEEF"))
 }
 
 @(test)
 test_software_interrupt_encoding :: proc(t: ^testing.T) {
-    testing.expect_value(t, machine_word("swi"),        0x5001_0000)
-    testing.expect_value(t, machine_word("swi 0xBEEF"), 0x5001_BEEF)
+    testing.expect_value(t, machine_word("swi"),        0xE000_0000)
+    testing.expect_value(t, machine_word("swi 0xBEEF"), 0xE000_BEEF)
 }
 
 

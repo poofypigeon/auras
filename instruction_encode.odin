@@ -15,19 +15,19 @@ Instruction :: struct {
 
 
 Data_Transfer_Encoding :: bit_field u32 {
-    offset: uint     | 10,
-    n:      bool     | 1,
-    shift:  uint     | 4,
-    b:      bool     | 1,
-    h:      bool     | 1,
-    w:      bool     | 1,
-    m:      bool     | 1,
-    p:      bool     | 1,
-    rm:     Register | 4,
-    rd:     Register | 4,
-    i:      bool     | 1,
-    s:      bool     | 1,
-    _:      uint     | 2,
+    offset: uint | 10,
+    n:      bool | 1,
+    shift:  uint | 4,
+    b:      bool | 1,
+    h:      bool | 1,
+    w:      bool | 1,
+    m:      bool | 1,
+    p:      bool | 1,
+    rm:     uint | 4,
+    rd:     uint | 4,
+    i:      bool | 1,
+    s:      bool | 1,
+    _:      uint | 2,
 }
 
 @(private = "file") DATA_TRANSFER_OFFSET_NOT_ENCODABLE_MESSAGE  :: "value is not encodable as a 10 bit unsigned integer"
@@ -90,7 +90,7 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding) ->
                 machine_word.w = true;
             }
             if machine_word.i { // Immediate offset
-                if machine_word.offset, machine_word.shift, err = data_transfer_encode_offset_and_shift(offset); err != nil {
+                if machine_word.offset, machine_word.shift, err = encode_offset_and_shift(offset); err != nil {
                     err := err.(Not_Encodable)
                     err.start_column = offset_start_column
                     err.end_column = offset_end_column
@@ -110,7 +110,7 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding) ->
             }
         }
         if machine_word.i { // Immediate offset
-            if machine_word.offset, machine_word.shift, err = data_transfer_encode_offset_and_shift(offset); err != nil {
+            if machine_word.offset, machine_word.shift, err = encode_offset_and_shift(offset); err != nil {
                 err := err.(Not_Encodable)
                 err.start_column = offset_start_column
                 err.end_column = offset_end_column
@@ -132,7 +132,7 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding) ->
     }
 
     shift := expect_integer(line) or_return
-    if machine_word.shift,  err = data_transfer_encode_shift(shift); err != nil {
+    if machine_word.shift,  err = encode_shift(shift); err != nil {
         err := err.(Not_Encodable)
         err.start_column = line.token_start
         err.end_column = line.token_end
@@ -149,41 +149,39 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding) ->
     }
 
     return Instruction{ machine_word = u32le(machine_word) }, nil
-}
 
-@(private = "file")
-data_transfer_encode_offset_and_shift :: proc "contextless" (v: uint) -> (offset: uint, shift: uint, err: Line_Error) {
-    // Value is encodable without shift
-    if v < (1 << 10) {
-        return v, 0, nil
+    encode_offset_and_shift :: proc "contextless" (v: uint) -> (offset: uint, shift: uint, err: Line_Error) {
+        // Value is encodable without shift
+        if v < (1 << 10) {
+            return v, 0, nil
+        }
+
+        // Find an encoding using a shift, if possible
+        uint_bits :: bits.count_ones(max(uint))
+        leading_zeros := bits.count_leading_zeros(v)
+        trailing_zeros := bits.count_trailing_zeros(v)
+        window_size := uint_bits - leading_zeros - trailing_zeros
+
+        // All set bits must fit within in a 10 bit window
+        // If the window is not left-aligned to 2 bits, then it may only be 9 bits wide
+        if window_size > 10 || (window_size == 10 && leading_zeros % 2 == 1) {
+            return 0, 0, Not_Encodable{ message = DATA_TRANSFER_OFFSET_NOT_ENCODABLE_MESSAGE }
+        }
+
+        offset = v >> (trailing_zeros &~ 1)
+        shift = trailing_zeros >> 1
+        return offset, shift, nil
     }
 
-    // Find an encoding using a shift, if possible
-    uint_bits :: bits.count_ones(max(uint))
-    leading_zeros := bits.count_leading_zeros(v)
-    trailing_zeros := bits.count_trailing_zeros(v)
-    window_size := uint_bits - leading_zeros - trailing_zeros
-
-    // All set bits must fit within in a 10 bit window
-    // If the window is not left-aligned to 2 bits, then it may only be 9 bits wide
-    if window_size > 10 || (window_size == 10 && leading_zeros % 2 == 1) {
-        return 0, 0, Not_Encodable{ message = DATA_TRANSFER_OFFSET_NOT_ENCODABLE_MESSAGE }
+    encode_shift :: proc "contextless" (shift: uint) -> (new: uint, err: Line_Error) {
+        if shift > 0x1E {
+            return 0, Not_Encodable{ message = DATA_TRANSFER_SHIFT_OUT_OF_RANGE_MESSAGE }
+        }
+        if shift % 2 == 1 {
+            return 0, Not_Encodable{ message = DATA_TRANSFER_SHIFT_MULTIPLE_OF_TWO_MESSAGE }
+        }
+        return shift >> 1, nil
     }
-
-    offset = v >> (trailing_zeros &~ 1)
-    shift = trailing_zeros >> 1
-    return offset, shift, nil
-}
-
-@(private = "file")
-data_transfer_encode_shift :: proc "contextless" (shift: uint) -> (new: uint, err: Line_Error) {
-    if shift > 0x1E {
-        return 0, Not_Encodable{ message = DATA_TRANSFER_SHIFT_OUT_OF_RANGE_MESSAGE }
-    }
-    if shift % 2 == 1 {
-        return 0, Not_Encodable{ message = DATA_TRANSFER_SHIFT_MULTIPLE_OF_TWO_MESSAGE }
-    }
-    return shift >> 1, nil
 }
 
 
@@ -193,9 +191,9 @@ data_transfer_encode_shift :: proc "contextless" (shift: uint) -> (new: uint, er
 
 
 Move_From_PSR_Encoding :: bit_field u32 {
-    _:  uint     | 24,
-    rd: Register | 4,
-    _:  uint     | 4,
+    _:  uint | 24,
+    rd: uint | 4,
+    _:  uint | 4,
 }
 
 @(private = "file")
@@ -256,16 +254,16 @@ encode_set_clear_psr_bits :: proc(line: ^Tokenizer, flags: Set_Clear_PSR_Bits_En
 
 
 Data_Processing_Encoding :: bit_field u32 {
-    operand2: uint     | 10,
-    shift:    uint     | 5,
-    d:        bool     | 1,
-    a:        bool     | 1,
-    opcode:   Opcode   | 3,
-    rm:       Register | 4,
-    rd:       Register | 4,
-    i:        bool     | 1,
-    h:        bool     | 1,
-    _:        uint     | 2,
+    operand2: uint   | 10,
+    shift:    uint   | 5,
+    d:        bool   | 1,
+    a:        bool   | 1,
+    opcode:   Opcode | 3,
+    rm:       uint   | 4,
+    rd:       uint   | 4,
+    i:        bool   | 1,
+    h:        bool   | 1,
+    _:        uint   | 2,
 }
 
 Opcode :: enum {
@@ -360,7 +358,7 @@ encode_data_processing :: proc(line: ^Tokenizer, flags: Data_Processing_Encoding
         switch token {
         case "\n": // No explicit shift
             if machine_word.i { // Immediate operand
-                if machine_word.operand2, machine_word.shift, err = data_processing_encode_immediate_and_shift(immediate); err != nil {
+                if machine_word.operand2, machine_word.shift, err = encode_immediate_and_shift(immediate); err != nil {
                     err := err.(Not_Encodable)
                     err.start_column = immediate_start_column
                     err.end_column = immediate_end_column
@@ -401,7 +399,7 @@ encode_data_processing :: proc(line: ^Tokenizer, flags: Data_Processing_Encoding
         machine_word.shift = uint(shift)
     case uint:
         machine_word.h = true
-        if machine_word.shift, err = data_processing_encode_shift(shift, machine_word.d); err != nil {
+        if machine_word.shift, err = encode_shift(shift, machine_word.d); err != nil {
             err := err.(Not_Encodable)
             err.start_column = line.token_start
             err.end_column = line.token_end
@@ -410,57 +408,55 @@ encode_data_processing :: proc(line: ^Tokenizer, flags: Data_Processing_Encoding
     }
 
     return Instruction{ machine_word = u32le(machine_word) }, nil
-}
 
-@(private = "file")
-data_processing_encode_immediate_and_shift :: proc(v: uint) -> (immediate: uint, shift: uint, err: Line_Error) {
-    if v < (1 << 9) || (int(v) >> 9) == -1 { // Encodable without shift
-        return v, 0, nil
-    }
+    encode_immediate_and_shift :: proc(v: uint) -> (immediate: uint, shift: uint, err: Line_Error) {
+        if v < (1 << 9) || (int(v) >> 9) == -1 { // Encodable without shift
+            return v, 0, nil
+        }
 
-    // Find an encoding using a shift, if possible
-    leading_zeros := bits.count_leading_zeros(v)
-    trailing_zeros := bits.count_trailing_zeros(v)
+        // Find an encoding using a shift, if possible
+        leading_zeros := bits.count_leading_zeros(v)
+        trailing_zeros := bits.count_trailing_zeros(v)
 
-    if leading_zeros == 0 { // negative
-        leading_ones := bits.count_leading_zeros(~v)
-        window_size := leading_ones - trailing_zeros
+        if leading_zeros == 0 { // negative
+            leading_ones := bits.count_leading_zeros(~v)
+            window_size := leading_ones - trailing_zeros
+            if window_size > 9 {
+                return 0, 0, Not_Encodable{
+                    message = DATA_PROCESSING_IMMEDIATE_AND_SHIFT_NOT_ENCODABLE_MESSAGE
+                }
+            }
+            
+            immediate = uint(int(v) >> trailing_zeros)
+            shift = trailing_zeros
+            return immediate, shift, nil
+        }
+
+        // positive
+        uint_bits :: bits.count_ones(max(uint))
+        window_size := uint_bits - leading_zeros - trailing_zeros
         if window_size > 9 {
             return 0, 0, Not_Encodable{
                 message = DATA_PROCESSING_IMMEDIATE_AND_SHIFT_NOT_ENCODABLE_MESSAGE
             }
         }
-        
-        immediate = uint(int(v) >> trailing_zeros)
+
+        immediate = v >> trailing_zeros
         shift = trailing_zeros
         return immediate, shift, nil
     }
 
-    // positive
-    uint_bits :: bits.count_ones(max(uint))
-    window_size := uint_bits - leading_zeros - trailing_zeros
-    if window_size > 9 {
-        return 0, 0, Not_Encodable{
-            message = DATA_PROCESSING_IMMEDIATE_AND_SHIFT_NOT_ENCODABLE_MESSAGE
+    encode_shift :: proc(shift: uint, right: bool) -> (new: uint, err: Line_Error) {
+        // Must determine if the shift is representable as a 5-bit value
+        if shift > 32 || (!right && shift == 32) {
+            return 0, Not_Encodable{
+                message = DATA_PROCESSING_SHIFT_NOT_ENCODABLE_MESSAGE
+            }
         }
+
+        // 32-bit right shift is encoded as 0
+        return (shift < 32 ? shift : 0), nil
     }
-
-    immediate = v >> trailing_zeros
-    shift = trailing_zeros
-    return immediate, shift, nil
-}
-
-@(private = "file")
-data_processing_encode_shift :: proc(shift: uint, right: bool) -> (new: uint, err: Line_Error) {
-    // Must determine if the shift is representable as a 5-bit value
-    if shift > 32 || (!right && shift == 32) {
-        return 0, Not_Encodable{
-            message = DATA_PROCESSING_SHIFT_NOT_ENCODABLE_MESSAGE
-        }
-    }
-
-    // 32-bit right shift is encoded as 0
-    return (shift < 32 ? shift : 0), nil
 }
 
 
@@ -470,8 +466,8 @@ data_processing_encode_shift :: proc(shift: uint, right: bool) -> (new: uint, er
 
 
 Software_Interrupt_Encoding :: bit_field u32 {
-    comment: uint | 16,
-    _:       uint | 16,
+    comment: uint | 28,
+    _:       uint | 4,
 }
 
 @(private = "file")
@@ -482,7 +478,7 @@ encode_software_interrupt :: proc(line: ^Tokenizer) -> (instr: Instruction, err:
     token: string = ---
     ok: bool = ---
 
-    machine_word := Software_Interrupt_Encoding(0x50010000)
+    machine_word := Software_Interrupt_Encoding(0xE0000000)
 
     if token, ok = tokenizer_next(line); !ok { // end of line
         return Instruction{ machine_word = u32le(machine_word) }, nil
@@ -499,7 +495,7 @@ encode_software_interrupt :: proc(line: ^Tokenizer) -> (instr: Instruction, err:
     relocation_symbol: Maybe(string) = nil
     #partial switch v in op {
     case uint:
-        if v >= (1 << 16) {
+        if v >= (1 << 28) {
             return Instruction{}, Not_Encodable{
                 start_column = line.token_start,
                 end_column = line.token_end,
@@ -531,8 +527,7 @@ Branch_Encoding :: bit_field u32 {
     _:         uint      | 2,
 }
 
-@(private = "file")
-Condition :: enum {
+Condition :: enum uint {
     eq = 0b0000,
     ne = 0b0001,
     cs = 0b0010,
@@ -596,10 +591,10 @@ encode_branch :: proc(line: ^Tokenizer, flags: Branch_Encoding) -> (instr: Instr
 
 
 Move_Immediate_Encoding :: bit_field u32 {
-    immediate: uint     | 24,
-    rd:        Register | 4,
-    m:         bool     | 1,
-    _:         uint     | 3,
+    immediate: uint | 24,
+    rd:        uint | 4,
+    m:         bool | 1,
+    _:         uint | 3,
 }
 
 @(private = "file")

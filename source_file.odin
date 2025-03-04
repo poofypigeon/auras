@@ -1,9 +1,11 @@
 package auras
 
 import "core:fmt"
-import "core:mem"
-import "core:unicode"
 import "core:math/bits"
+import "core:mem"
+import "core:slice"
+import "core:strings"
+import "core:unicode"
 
 Relocation_Table_Entry :: struct {
     offset: u32, // offset from beginning of file
@@ -26,8 +28,8 @@ Source_File :: struct {
 // TODO more thoughtful memory management
 create_source_file :: proc() -> Source_File {
     return Source_File{
-        buffer           = make([dynamic]u8, 0, 1024),
-        string_table     = make([dynamic]u8, 0, 1024),
+        buffer           = make([dynamic]u8, 0, 256),
+        string_table     = make([dynamic]u8, 0, 256),
         symbol_map       = make(map[string]u32),
         relocation_table = make([dynamic]Relocation_Table_Entry, 0, 64),
         symbol_table     = make([dynamic]Symbol_Table_Entry, 0, 64)
@@ -40,6 +42,56 @@ cleanup_source_file :: proc(file: ^Source_File) {
     delete(file.symbol_map)
     delete(file.relocation_table)
     delete(file.symbol_table)
+}
+
+process_text :: proc(file: ^Source_File, text: string) -> (ok: bool) {
+    text := text
+    line_number: uint = 0
+    for line_text in strings.split_lines_iterator(&text) {
+        if err := process_line(file, line_text); err != nil {
+            print_line_error(line_text, line_number, err)
+            return false
+        }
+        line_number += 1
+    }
+
+    for relocation_entry in file.relocation_table {
+        symbol_entry := file.symbol_table[relocation_entry.symbol]
+
+        highest_nybble := file.buffer[relocation_entry.offset + SIZE_OF_WORD-1] >> 4
+        switch highest_nybble {
+        case 0b1001, 0b1011: // branch
+            b_word := (^u32le)(&file.buffer[relocation_entry.offset])
+            assert(b_word^ & 0x00FF_FFFF == 0, "unexpected instruction at branch relocation offset")
+
+            offset := int(symbol_entry.offset) - int(relocation_entry.offset)
+            assert(offset % SIZE_OF_WORD == 0, "misaligned jump offset")
+            offset >>= 2
+            if (offset >> 23 != 0 && offset >> 23 != 1 && offset >> 23 != -1) {
+                // TODO trampoline once sections are supported
+                panic("branch offset out of range")
+            }
+
+            offset_le := u32le(offset)
+            b_word^ |= offset_le & 0x00FF_FFFF
+
+        case 0b1100: // m32
+            mvi_word := (^u32le)(&file.buffer[relocation_entry.offset])
+            assert(mvi_word^ & 0x00FF_FFFF == 0x0000_0000, "unexpected instruction at m32 relocation offset")
+
+            add_word := (^u32le)(&file.buffer[relocation_entry.offset + SIZE_OF_WORD])
+            assert(add_word^ & 0x00FF_FFFF == 0x0001_6000, "unexpected instruction at m32 relocation offset + 4")
+
+            offset_le := u32le(symbol_entry.offset)
+            mvi_word^ |= offset_le & 0x00FF_FFFF
+            add_word^ |= offset_le >> 24
+
+        case:
+            panic("unexpected instruction at relocation offset")
+        }
+    }
+
+    return true
 }
 
 process_line :: proc(file: ^Source_File, line: string) -> (err: Line_Error) {
@@ -295,14 +347,7 @@ process_ascii :: proc(file: ^Source_File, line: ^Tokenizer) -> (size: uint, err:
 process_align :: proc(file: ^Source_File, line: ^Tokenizer) -> (err: Line_Error) {
     alignment := expect_integer(line) or_return
 
-    if token, ok := tokenizer_next(line); ok {
-        return Unexpected_Token{
-            column = line.token_start,
-            expected = "'eol'", found = token_str(token)
-        }
-    }
-
-    if alignment < 4 {
+    if alignment < SIZE_OF_WORD {
         return Not_Encodable{
             start_column = line.token_start,
             end_column = line.token_end,
@@ -320,6 +365,13 @@ process_align :: proc(file: ^Source_File, line: ^Tokenizer) -> (err: Line_Error)
     alignment_padding := alignment - (len(file.buffer) % alignment)
     for _ in 0..<alignment_padding {
         append(&file.buffer, 0)
+    }
+
+    if token, ok := tokenizer_next(line); ok {
+        return Unexpected_Token{
+            column = line.token_start,
+            expected = "'eol'", found = token_str(token)
+        }
     }
 
     return nil
