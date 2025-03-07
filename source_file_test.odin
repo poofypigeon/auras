@@ -1,3 +1,5 @@
+#+private
+
 package auras
 
 import "core:bytes"

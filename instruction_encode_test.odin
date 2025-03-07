@@ -1,3 +1,5 @@
+#+private
+
 package auras
 
 import "core:testing"
@@ -146,9 +148,7 @@ test_data_transfer_mnemonic_variants :: proc(t: ^testing.T) {
     testing.expect_value(t, machine_word("ldsh r1, [r2]"), 0x0125_0000)
     testing.expect_value(t, machine_word("st   r1, [r2]"), 0x2120_0000)
     testing.expect_value(t, machine_word("stb  r1, [r2]"), 0x2120_8000)
-    testing.expect_value(t, machine_word("stsb r1, [r2]"), 0x2124_8000)
     testing.expect_value(t, machine_word("sth  r1, [r2]"), 0x2121_0000)
-    testing.expect_value(t, machine_word("stsh r1, [r2]"), 0x2125_0000)
 }
 
 @(test)

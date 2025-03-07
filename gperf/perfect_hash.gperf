@@ -9,7 +9,7 @@ enum mnemonic_t {
     word, half, byte, ascii, align,
     // Instructions
     ld,   ldb,  ldh,  ldsb, ldsh,
-    st,   stb,  sth,  stsb, stsh,
+    st,   stb,  sth,
     smv,  scl,  sst,  
     add,  adc,  sub,  sbc,  and,  or,  xor,  btc, 
     addk, adck, subk, sbck, andk, ork, xork, btck,
@@ -43,8 +43,6 @@ ldsh,  ldsh
 st,    st
 stb,   stb
 sth,   sth
-stsb,  stsb
-stsh,  stsh
 smv,   smv
 scl,   scl
 sst,   sst

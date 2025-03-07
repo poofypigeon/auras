@@ -67,7 +67,7 @@ decode_data_transfer :: proc(machine_word: u32le) -> (instr_str: string, ok: boo
         case true:  strings.write_string(&sb, " - ")
     }
     if instr.i {
-        strings.write_uint(&sb, instr.offset << (instr.shift * 2))
+        strings.write_uint(&sb, uint(instr.offset << (instr.shift * 2)))
     } else {
         if instr.offset > 15 {
             strings.builder_destroy(&sb)
@@ -115,7 +115,7 @@ decode_set_clear_psr_bits :: proc(machine_word: u32le) -> (instr_str: string, ok
     if !instr.i {
         strings.write_byte(&sb, 'r')
     }
-    strings.write_uint(&sb, instr.operand)
+    strings.write_uint(&sb, uint(instr.operand))
 
     return strings.to_string(sb), true
 }
@@ -214,7 +214,7 @@ decode_branch :: proc(machine_word: u32le) -> (instr_str: string, ok: bool) {
         strings.write_int(&sb, int(i32(offset)) << 2)
     } else {
         strings.write_byte(&sb, 'r')
-        strings.write_uint(&sb, instr.offset)
+        strings.write_uint(&sb, uint(instr.offset))
     }
 
     return strings.to_string(sb), true
@@ -229,9 +229,9 @@ decode_move_immediate :: proc(machine_word: u32le) -> (instr_str: string, ok: bo
     strings.write_string(&sb, "    mvi   r")
     strings.write_uint(&sb, uint(instr.rd))
     strings.write_string(&sb, ", ")
-    immediate_value: uint = (instr.m) ? 0xFF00_0000 : 0
+    immediate_value: u32 = (instr.m) ? 0xFF00_0000 : 0
     immediate_value |= instr.immediate
-    strings.write_uint(&sb, immediate_value)
+    strings.write_uint(&sb, uint(immediate_value))
 
     return strings.to_string(sb), true
 }

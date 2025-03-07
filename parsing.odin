@@ -1,3 +1,5 @@
+#+private
+
 package auras
 
 import "base:runtime"
@@ -24,7 +26,7 @@ Mnemonic :: enum c.int32_t {
     word, half, byte, ascii, align,
     // Instructions
     ld,   ldb,  ldh,  ldsb, ldsh,
-    st,   stb,  sth,  stsb, stsh,
+    st,   stb,  sth,
     smv,  scl,  sst,  
     add,  adc,  sub,  sbc,  and,  or,  xor,  btc, 
     addk, adck, subk, sbck, andk, ork, xork, btck,
@@ -61,7 +63,7 @@ Operand :: union {
     string,
 }
 
-Register :: distinct uint
+Register :: distinct u32
 
 Symbol :: distinct string
 
@@ -98,7 +100,7 @@ Redefinition :: struct {
     label: string,
 }
 
-expect_register :: proc(line: ^Tokenizer) -> (register: uint, err: Line_Error) {
+expect_register :: proc(line: ^Tokenizer) -> (register: u32, err: Line_Error) {
     token: string = ---
     ok: bool = ---
     
@@ -125,7 +127,7 @@ expect_register :: proc(line: ^Tokenizer) -> (register: uint, err: Line_Error) {
         }
     }
     
-    return uint(reg), nil
+    return u32(reg), nil
 }
 
 expect_integer :: proc(line: ^Tokenizer) -> (value: uint, err: Line_Error) {
