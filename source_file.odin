@@ -379,7 +379,7 @@ process_align :: proc(file: ^Source_File, line: ^Tokenizer) -> (err: Line_Error)
 
 @(private = "file")
 process_instruction :: proc(file: ^Source_File, line: ^Tokenizer, mnem: Mnemonic) -> (err: Line_Error) {
-    instr := encode_instruction(line, mnem) or_return
+    instr := encode_instruction_from_mnemonic(line, mnem) or_return
 
     if token, ok := tokenizer_next(line); ok {
         return Unexpected_Token{

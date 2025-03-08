@@ -9,6 +9,29 @@ Instruction :: struct {
     relocation_symbol: Maybe(string),
 }
 
+// Return instruction encoding from string
+encode_machine_word :: proc(line: string) -> (machine_word: u32le) {
+    line := Tokenizer{ line = line }
+    token, ok := tokenizer_next(&line)
+    if !ok { return 0 }
+
+    mnem := mnem_from_token(token)
+    #partial switch mnem {
+    case .invalid, .word, .half, .byte, .ascii, .align: return 0
+    case:
+        instr, err := encode_instruction_from_mnemonic(&line, mnem)
+        if err == nil { return instr.machine_word }
+        e: Unexpected_Token = ---
+        e, ok = err.(Unexpected_Token)
+        if ok {
+            #partial switch expected in e.expected {
+            case [dynamic]string: delete(expected)
+            }
+        }
+    }
+    return 0
+}
+
 
 //===----------------------------------------------------------===//
 //    Data Transfer Instruction
@@ -744,7 +767,7 @@ encode_m32 :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Line_Error) {
 
 
 @(private)
-encode_instruction :: proc(line: ^Tokenizer, mnem: Mnemonic) -> (instr: Instruction, err: Line_Error) {
+encode_instruction_from_mnemonic :: proc(line: ^Tokenizer, mnem: Mnemonic) -> (instr: Instruction, err: Line_Error) {
     switch mnem {
     // Data Transfer
     case .ld:   instr = encode_data_transfer(line, Data_Transfer_Encoding{                              }) or_return

@@ -6,34 +6,7 @@ import "core:fmt"
 import "core:slice"
 
 code :: `
-;start:
-    nop
-    nop
-    nop
-;    m32     r1, string
-;    bl      str_to_upper
-;done:
-;    b       done
-;
-;str_to_upper:
-;    ; read string size into r2
-;    ld      r2, [r1] + 4
-;str_to_upper_loop:
-;    cmp     r2, 0
-;    beq     lr
-;    sub     r2, r2, 1
-;    ldb     r13, [r1] + 1
-;    cmp     r13, 0x61 ; 'a'
-;    blt     str_to_upper_loop
-;    cmp     r13, 0x71 ; 'z'
-;    bgt     str_to_upper_loop
-;    sub     r13, r13, 0x20 ; 'a' - 'A'
-;    stb     r13, [r2 - 1]
-;    b       str_to_upper_loop
-;
-;string:
-;    word * ascii "Hello, world!"
-;    ;align 4
+    ld r2, [r0 + 1 lsl 2]
 `
 
 main :: proc() {

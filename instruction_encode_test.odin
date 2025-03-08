@@ -12,7 +12,7 @@ produces_unexpected_token_error :: #force_inline proc(str: string) -> bool {
         return false
     }
     mnem := mnem_from_token(token)
-    _, err := encode_instruction(&line, mnem)
+    _, err := encode_instruction_from_mnemonic(&line, mnem)
     if err == nil {
         return false
     }
@@ -34,7 +34,7 @@ produces_not_encodable_error :: #force_inline proc(str: string) -> bool {
         return false
     }
     mnem := mnem_from_token(token)
-    _, err := encode_instruction(&line, mnem)
+    _, err := encode_instruction_from_mnemonic(&line, mnem)
     if err == nil {
         return false
     }
@@ -50,7 +50,7 @@ machine_word :: #force_inline proc(str: string) -> u32le {
         return ~u32le(0)
     }
     mnem := mnem_from_token(token)
-    instr, err := encode_instruction(&line, mnem)
+    instr, err := encode_instruction_from_mnemonic(&line, mnem)
     if err != nil {
         return ~u32le(0)
     }
@@ -65,7 +65,7 @@ instruction :: #force_inline proc(str: string) -> Instruction {
         return Instruction{ machine_word = ~u32le(0) }
     }
     mnem := mnem_from_token(token)
-    instr, err := encode_instruction(&line, mnem)
+    instr, err := encode_instruction_from_mnemonic(&line, mnem)
     if err != nil {
         return Instruction{ machine_word = ~u32le(0) }
     }
@@ -80,7 +80,7 @@ instruction_and_error :: #force_inline proc(str: string) -> (instr: Instruction,
         return Instruction{ machine_word = ~u32le(0) }, nil
     }
     mnem := mnem_from_token(token)
-    return encode_instruction(&line, mnem)
+    return encode_instruction_from_mnemonic(&line, mnem)
 }
 
 
