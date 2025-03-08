@@ -297,7 +297,7 @@ process_static_data :: proc(file: ^Source_File, line: ^Tokenizer, data_type_size
 
 @(private = "file")
 process_ascii :: proc(file: ^Source_File, line: ^Tokenizer) -> (size: uint, err: Line_Error) {
-    if _, err = expect_token(line, "\""); err != nil {
+    if _, err = expect_token(line, "\"", no_alloc = true); err != nil {
         err := err.(Unexpected_Token)
         err.expected = "string literal"
         return 0, err

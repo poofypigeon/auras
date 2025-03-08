@@ -188,7 +188,7 @@ expect_register_or_integer :: proc(line: ^Tokenizer) -> (op: Operand, err: Line_
     return op, nil
 }
 
-expect_token :: proc(line: ^Tokenizer, one_of: ..string) -> (operator: string, err: Line_Error) {
+expect_token :: proc(line: ^Tokenizer, one_of: ..string, no_alloc: bool = false) -> (operator: string, err: Line_Error) {
     token: string = ---
     ok: bool = ---
 
@@ -201,6 +201,13 @@ expect_token :: proc(line: ^Tokenizer, one_of: ..string) -> (operator: string, e
     }
 
     // Token not in list
+    if no_alloc {
+        return token, Unexpected_Token{
+            column = line.token_start,
+            found = quoted_string(token),
+        }
+    }
+
     expected := make([dynamic]string, 0, len(one_of))
     append(&expected, ..one_of)
 

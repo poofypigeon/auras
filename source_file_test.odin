@@ -8,7 +8,7 @@ import "core:testing"
 
 @(private = "file")
 produces_unexpected_token_error :: #force_inline proc(file: ^Source_File, str: string) -> bool {
-    err := process_lin(file, str)
+    err := process_line(file, str)
     e, ok := err.(Unexpected_Token)
     if ok {
         #partial switch expected in e.expected {
@@ -23,10 +23,10 @@ test_empty_line :: proc(t: ^testing.T) {
     file := create_source_file()
     defer cleanup_source_file(&file)
 
-    testing.expect(t, process_lin(&file, "")                   == nil)
-    testing.expect(t, process_lin(&file, "    ")               == nil)
-    testing.expect(t, process_lin(&file, "; some comment")     == nil)
-    testing.expect(t, process_lin(&file, "    ; some comment") == nil)
+    testing.expect(t, process_line(&file, "")                   == nil)
+    testing.expect(t, process_line(&file, "    ")               == nil)
+    testing.expect(t, process_line(&file, "; some comment")     == nil)
+    testing.expect(t, process_line(&file, "    ; some comment") == nil)
 }
 
 @(test)
@@ -58,7 +58,7 @@ test_local_label :: proc(t: ^testing.T) {
     file := create_source_file()
     defer cleanup_source_file(&file)
 
-    err := process_lin(&file, "L1:")
+    err := process_line(&file, "L1:")
     testing.expect(t, err == nil)
 
     // file.buffer
@@ -83,8 +83,8 @@ test_local_label_redefinition :: proc(t: ^testing.T) {
     defer cleanup_source_file(&file)
 
     err: Line_Error
-    err = process_lin(&file, "L1:")
-    err = process_lin(&file, "L1:")
+    err = process_line(&file, "L1:")
+    err = process_line(&file, "L1:")
     _, ok := err.(Redefinition)
     testing.expect(t, ok)
 }
@@ -122,7 +122,7 @@ test_general_instruction :: proc(t: ^testing.T) {
     file := create_source_file()
     defer cleanup_source_file(&file)
 
-    err := process_lin(&file, "    mvi r1, 0xAA")
+    err := process_line(&file, "    mvi r1, 0xAA")
     testing.expect(t, err == nil)
 
     // file.buffer
@@ -143,7 +143,7 @@ test_m32_integer_literal :: proc(t: ^testing.T) {
     file := create_source_file()
     defer cleanup_source_file(&file)
 
-    err := process_lin(&file, "    m32 r1, 0xDEAD_BEEF")
+    err := process_line(&file, "    m32 r1, 0xDEAD_BEEF")
     testing.expect(t, err == nil)
 
     // file.buffer
@@ -164,7 +164,7 @@ test_m32_relocation :: proc(t: ^testing.T) {
     file := create_source_file()
     defer cleanup_source_file(&file)
 
-    err := process_lin(&file, "    m32 r1, L1")
+    err := process_line(&file, "    m32 r1, L1")
     testing.expect(t, err == nil)
 
     // file.buffer
@@ -190,7 +190,7 @@ test_branch_relocation :: proc(t: ^testing.T) {
     file := create_source_file()
     defer cleanup_source_file(&file)
 
-    err := process_lin(&file, "    beq L1")
+    err := process_line(&file, "    beq L1")
     testing.expect(t, err == nil)
 
     // file.buffer
@@ -216,13 +216,13 @@ test_multiple_labels_and_relocations :: proc(t: ^testing.T) {
     defer cleanup_source_file(&file)
 
     err: Line_Error
-    err = process_lin(&file, "L1:")
+    err = process_line(&file, "L1:")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "    m32 r1, L2")
+    err = process_line(&file, "    m32 r1, L2")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "L2:")
+    err = process_line(&file, "L2:")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "    beq L1")
+    err = process_line(&file, "    beq L1")
     testing.expect(t, err == nil)
 
     // file.buffer
@@ -256,23 +256,23 @@ test_static_data_out_of_range :: proc(t: ^testing.T) {
     err: Line_Error
     ok: bool
 
-    err = process_lin(&file, "    word 0x1_0000_0000")
+    err = process_line(&file, "    word 0x1_0000_0000")
     _, ok = err.(Not_Encodable)
     testing.expect(t, ok)
-    err = process_lin(&file, "    half 0x1_0000")
+    err = process_line(&file, "    half 0x1_0000")
     _, ok = err.(Not_Encodable)
     testing.expect(t, ok)
-    err = process_lin(&file, "    byte 0x100")
+    err = process_line(&file, "    byte 0x100")
     _, ok = err.(Not_Encodable)
     testing.expect(t, ok)
 
-    err = process_lin(&file, "    word -0x8000_0001")
+    err = process_line(&file, "    word -0x8000_0001")
     _, ok = err.(Not_Encodable)
     testing.expect(t, ok)
-    err = process_lin(&file, "    half -0x8001")
+    err = process_line(&file, "    half -0x8001")
     _, ok = err.(Not_Encodable)
     testing.expect(t, ok)
-    err = process_lin(&file, "    byte -0x81")
+    err = process_line(&file, "    byte -0x81")
     _, ok = err.(Not_Encodable)
     testing.expect(t, ok)
 }
@@ -292,17 +292,17 @@ test_static_data_single_value :: proc(t: ^testing.T) {
     defer cleanup_source_file(&file)
 
     err: Line_Error
-    err = process_lin(&file, "    word 0xDEAD_BEEF")
+    err = process_line(&file, "    word 0xDEAD_BEEF")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "    word -1")
+    err = process_line(&file, "    word -1")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "    half 0xBEEF")
+    err = process_line(&file, "    half 0xBEEF")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "    half -1")
+    err = process_line(&file, "    half -1")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "    byte 0xAA")
+    err = process_line(&file, "    byte 0xAA")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "    byte -1")
+    err = process_line(&file, "    byte -1")
     testing.expect(t, err == nil)
    
     // file.buffer
@@ -324,11 +324,11 @@ test_static_data_multiple_values :: proc(t: ^testing.T) {
     defer cleanup_source_file(&file)
 
     err: Line_Error
-    err = process_lin(&file, "    word 0, 1, 2, 3")
+    err = process_line(&file, "    word 0, 1, 2, 3")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "    half 0, 1, 2, 3")
+    err = process_line(&file, "    half 0, 1, 2, 3")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "    byte 0, 1, 2, 3")
+    err = process_line(&file, "    byte 0, 1, 2, 3")
     testing.expect(t, err == nil)
    
     expected_buffer_words := []u32le{ 0, 1, 2, 3 }
@@ -355,11 +355,11 @@ test_static_data_multiple_values_auto_length :: proc(t: ^testing.T) {
     defer cleanup_source_file(&file)
 
     err: Line_Error
-    err = process_lin(&file, "    word * word 0, 1, 2, 3")
+    err = process_line(&file, "    word * word 0, 1, 2, 3")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "    half * half 0, 1, 2, 3")
+    err = process_line(&file, "    half * half 0, 1, 2, 3")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "    byte * byte 0, 1, 2, 3")
+    err = process_line(&file, "    byte * byte 0, 1, 2, 3")
     testing.expect(t, err == nil)
    
     expected_buffer_words := []u32le{ 4, 0, 1, 2, 3 }
@@ -371,6 +371,16 @@ test_static_data_multiple_values_auto_length :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_static_data_ascii_unexpected_token :: proc(t: ^testing.T) {
+    file := create_source_file()
+    defer cleanup_source_file(&file)
+
+    err := process_line(&file, "    ascii!")
+    _, ok := err.(Unexpected_Token)
+    testing.expect(t, ok)
+}
+
+@(test)
 test_static_data_ascii_unexpected_eol :: proc(t: ^testing.T) {
     file := create_source_file()
     defer cleanup_source_file(&file)
@@ -378,10 +388,10 @@ test_static_data_ascii_unexpected_eol :: proc(t: ^testing.T) {
     err: Line_Error
     ok: bool
 
-    err = process_lin(&file, "    ascii \"")
+    err = process_line(&file, "    ascii \"")
     _, ok = err.(Unexpected_EOL)
     testing.expect(t, ok)
-    err = process_lin(&file, "    ascii \"\\")
+    err = process_line(&file, "    ascii \"\\")
     _, ok = err.(Unexpected_EOL)
     testing.expect(t, ok)
 }
@@ -391,7 +401,7 @@ test_static_data_ascii :: proc(t: ^testing.T) {
     file := create_source_file()
     defer cleanup_source_file(&file)
 
-    err := process_lin(&file, "    ascii \"\tabc\n\"")
+    err := process_line(&file, "    ascii \"\tabc\n\"")
     testing.expect(t, err == nil)
 
     expected_buffer_bytes := []u8{ '\t', 'a', 'b', 'c', '\n' }
@@ -403,7 +413,7 @@ test_static_data_ascii_auto_length :: proc(t: ^testing.T) {
     file := create_source_file()
     defer cleanup_source_file(&file)
 
-    err := process_lin(&file, "    byte * ascii \"ascii\"")
+    err := process_line(&file, "    byte * ascii \"ascii\"")
     testing.expect(t, err == nil)
 
     expected_buffer_bytes := []u8{ 5, 'a', 's', 'c', 'i', 'i' }
@@ -418,10 +428,10 @@ test_align_non_power_of_two :: proc(t: ^testing.T) {
     err: Line_Error
     ok: bool
 
-    err = process_lin(&file, "    align 3")
+    err = process_line(&file, "    align 3")
     _, ok = err.(Not_Encodable)
     testing.expect(t, ok)
-    err = process_lin(&file, "    align 5")
+    err = process_line(&file, "    align 5")
     _, ok = err.(Not_Encodable)
     testing.expect(t, ok)
 }
@@ -432,15 +442,15 @@ test_align :: proc(t: ^testing.T) {
     defer cleanup_source_file(&file)
 
     err: Line_Error
-    err = process_lin(&file, "    byte 0xAA")
+    err = process_line(&file, "    byte 0xAA")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "    align 4")
+    err = process_line(&file, "    align 4")
     testing.expect(t, err == nil)
 
     expected_buffer_bytes := []u8{ 0xAA, 0, 0, 0 }
     testing.expect(t, bytes.compare(file.buffer[:], mem.slice_to_bytes(expected_buffer_bytes)) == 0)
 
-    err = process_lin(&file, "    align 8")
+    err = process_line(&file, "    align 8")
     testing.expect(t, err == nil)
 
     expected_buffer_bytes = []u8{ 0xAA, 0, 0, 0, 0, 0, 0, 0 }
@@ -453,9 +463,9 @@ test_label_alignment :: proc(t: ^testing.T) {
     defer cleanup_source_file(&file)
 
     err: Line_Error
-    err = process_lin(&file, "    byte 0xAA")
+    err = process_line(&file, "    byte 0xAA")
     testing.expect(t, err == nil)
-    err = process_lin(&file, "L1:")
+    err = process_line(&file, "L1:")
     testing.expect(t, err == nil)
 
     expected_buffer_bytes := []u8{ 0xAA, 0, 0, 0 }
