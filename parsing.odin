@@ -188,8 +188,7 @@ expect_register_or_integer :: proc(line: ^Tokenizer) -> (op: Operand, err: Line_
     return op, nil
 }
 
-expect_token :: proc(line: ^Tokenizer, one_of: ..string, no_alloc: bool = false) -> (operator: string, err: Line_Error) {
-    token: string = ---
+expect_token :: proc(line: ^Tokenizer, one_of: ..string, no_alloc: bool = false) -> (token: string, err: Line_Error) {
     ok: bool = ---
 
     if token, ok = tokenizer_next(line); ok {
@@ -217,9 +216,7 @@ expect_token :: proc(line: ^Tokenizer, one_of: ..string, no_alloc: bool = false)
     }
 }
 
-optional_token :: proc(line: ^Tokenizer, one_of: ..string, eol: bool = false) -> (operator: string, ok: bool) {
-    token: string = ---
-
+optional_token :: proc(line: ^Tokenizer, one_of: ..string, eol: bool = false) -> (token: string, ok: bool) {
     if token, ok = tokenizer_next(line); !ok {
         if eol {
             return "\n", true

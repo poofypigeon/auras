@@ -43,16 +43,16 @@ produces_not_encodable_error :: #force_inline proc(str: string) -> bool {
 }
 
 @(private = "file")
-machine_word :: #force_inline proc(str: string) -> u32le {
+machine_word :: #force_inline proc(str: string) -> u32 {
     line := Tokenizer{ line = str }
     token, ok := tokenizer_next(&line)
     if !ok {
-        return ~u32le(0)
+        return ~u32(0)
     }
     mnem := mnem_from_token(token)
     instr, err := encode_instruction_from_mnemonic(&line, mnem)
     if err != nil {
-        return ~u32le(0)
+        return ~u32(0)
     }
     return instr.machine_word
 }
@@ -62,12 +62,12 @@ instruction :: #force_inline proc(str: string) -> Instruction {
     line := Tokenizer{ line = str }
     token, ok := tokenizer_next(&line)
     if !ok {
-        return Instruction{ machine_word = ~u32le(0) }
+        return Instruction{ machine_word = ~u32(0) }
     }
     mnem := mnem_from_token(token)
     instr, err := encode_instruction_from_mnemonic(&line, mnem)
     if err != nil {
-        return Instruction{ machine_word = ~u32le(0) }
+        return Instruction{ machine_word = ~u32(0) }
     }
     return instr
 }
@@ -77,7 +77,7 @@ instruction_and_error :: #force_inline proc(str: string) -> (instr: Instruction,
     line := Tokenizer{ line = str }
     token, ok := tokenizer_next(&line)
     if !ok {
-        return Instruction{ machine_word = ~u32le(0) }, nil
+        return Instruction{ machine_word = ~u32(0) }, nil
     }
     mnem := mnem_from_token(token)
     return encode_instruction_from_mnemonic(&line, mnem)
@@ -574,18 +574,18 @@ test_m32_encoding :: proc(t: ^testing.T) {
     instr, err = instruction_and_error("m32 r1, 0xDEAD_BEEF")
     testing.expect(t, err == nil)
     testing.expect_value(t, instr.machine_word,  0xC1AD_BEEF)
-    testing.expect_value(t, instr.machine_word2, 0x7101_60DE)
+    testing.expect_value(t, instr.machine_word2, 0x7111_60DE)
     testing.expect_value(t, instr.relocation_symbol, nil)
 
     instr, err = instruction_and_error("m32 r1, -0x5555_5555")
     testing.expect(t, err == nil)
     testing.expect_value(t, instr.machine_word,  0xC1AA_AAAB)
-    testing.expect_value(t, instr.machine_word2, 0x7101_60AA)
+    testing.expect_value(t, instr.machine_word2, 0x7111_60AA)
     testing.expect_value(t, instr.relocation_symbol, nil)
 
     instr, err = instruction_and_error("m32 r1, symbol")
     testing.expect(t, err == nil)
     testing.expect_value(t, instr.machine_word,  0xC100_0000)
-    testing.expect_value(t, instr.machine_word2, 0x7101_6000)
+    testing.expect_value(t, instr.machine_word2, 0x7111_6000)
     testing.expect_value(t, instr.relocation_symbol, "symbol")
 }

@@ -1,5 +1,3 @@
-#+private
-
 package auras
 
 import "core:unicode"

@@ -6,18 +6,22 @@ import "core:mem"
 import "core:slice"
 import "core:strings"
 import "core:unicode"
+import "base:runtime"
 
 Relocation_Table_Entry :: struct {
-    offset: u32, // offset from beginning of file
+    offset: u32, // offset from beginning of section
     symbol: u32, // index into symbol table
 }
 
 Symbol_Table_Entry :: struct {
-    offset: u32, // offset from beginning of file
+    offset: u32, // offset from beginning of section
     name:   u32, // index into string table
 }
 
-Source_File :: struct {
+@(private = "file")
+UNDEFINED_OFFSET :: max(u32)
+
+Code_Section :: struct {
     buffer: [dynamic]u8,
     symbol_table: [dynamic]Symbol_Table_Entry,
     relocation_table: [dynamic]Relocation_Table_Entry,
@@ -25,9 +29,8 @@ Source_File :: struct {
     symbol_map: map[string]u32,
 }
 
-// TODO more thoughtful memory management
-create_source_file :: proc() -> Source_File {
-    return Source_File{
+code_section_init :: proc() -> Code_Section {
+    return Code_Section{
         buffer           = make([dynamic]u8, 0, 256),
         string_table     = make([dynamic]u8, 0, 256),
         symbol_map       = make(map[string]u32),
@@ -36,32 +39,42 @@ create_source_file :: proc() -> Source_File {
     }
 }
 
-cleanup_source_file :: proc(file: ^Source_File) {
-    delete(file.buffer)
-    delete(file.string_table)
-    delete(file.symbol_map)
-    delete(file.relocation_table)
-    delete(file.symbol_table)
+code_section_cleanup :: proc(code: ^Code_Section) {
+    delete(code.buffer)
+    delete(code.string_table)
+    delete(code.symbol_map)
+    delete(code.relocation_table)
+    delete(code.symbol_table)
 }
 
-process_text :: proc(file: ^Source_File, text: string) -> (ok: bool) {
+code_from_text :: proc(text: string) -> (code: Code_Section, ok: bool) {
+    code = code_section_init()
     text := text
+
     line_number: uint = 0
     for line_text in strings.split_lines_iterator(&text) {
-        if err := process_line(file, line_text); err != nil {
+        if err := process_line(&code, line_text); err != nil {
             print_line_error(line_text, line_number, err)
-            return false
+            code_section_cleanup(&code)
+            return Code_Section{}, false
         }
         line_number += 1
     }
 
-    for relocation_entry in file.relocation_table {
-        symbol_entry := file.symbol_table[relocation_entry.symbol]
+    for relocation_entry in code.relocation_table {
+        symbol_entry := code.symbol_table[relocation_entry.symbol]
+        if symbol_entry.offset == UNDEFINED_OFFSET {
+            // TODO this error message needs to be fleshed out and properly structured
+            symbol_string := runtime.cstring_to_string(cstring(&code.string_table[symbol_entry.name]))
+            fmt.printfln("'%s' is referenced but not defined", symbol_string)
+            code_section_cleanup(&code)
+            return Code_Section{}, false
+        }
 
-        highest_nybble := file.buffer[relocation_entry.offset + SIZE_OF_WORD-1] >> 4
+        highest_nybble := code.buffer[relocation_entry.offset + SIZE_OF_WORD-1] >> 4
         switch highest_nybble {
         case 0b1001, 0b1011: // branch
-            b_word := (^u32le)(&file.buffer[relocation_entry.offset])
+            b_word := (^u32le)(&code.buffer[relocation_entry.offset])
             assert(b_word^ & 0x00FF_FFFF == 0, "unexpected instruction at branch relocation offset")
 
             offset := int(symbol_entry.offset) - int(relocation_entry.offset)
@@ -76,11 +89,11 @@ process_text :: proc(file: ^Source_File, text: string) -> (ok: bool) {
             b_word^ |= offset_le & 0x00FF_FFFF
 
         case 0b1100: // m32
-            mvi_word := (^u32le)(&file.buffer[relocation_entry.offset])
+            mvi_word := (^u32le)(&code.buffer[relocation_entry.offset])
             assert(mvi_word^ & 0x00FF_FFFF == 0x0000_0000, "unexpected instruction at m32 relocation offset")
 
-            add_word := (^u32le)(&file.buffer[relocation_entry.offset + SIZE_OF_WORD])
-            assert(add_word^ & 0x00FF_FFFF == 0x0001_6000, "unexpected instruction at m32 relocation offset + 4")
+            add_word := (^u32le)(&code.buffer[relocation_entry.offset + SIZE_OF_WORD])
+            assert(add_word^ & 0x000F_FFFF == 0x0001_6000, "unexpected instruction at m32 relocation offset + 4")
 
             offset_le := u32le(symbol_entry.offset)
             mvi_word^ |= offset_le & 0x00FF_FFFF
@@ -91,10 +104,10 @@ process_text :: proc(file: ^Source_File, text: string) -> (ok: bool) {
         }
     }
 
-    return true
+    return code, true
 }
 
-process_line :: proc(file: ^Source_File, line: string) -> (err: Line_Error) {
+process_line :: proc(code: ^Code_Section, line: string) -> (err: Line_Error) {
     token: string = ---
     ok: bool = ---
 
@@ -102,13 +115,13 @@ process_line :: proc(file: ^Source_File, line: string) -> (err: Line_Error) {
 
     if token, ok = optional_token(&line, eol = true); ok {
         // if token[0] == '.' {
-        //     // process_directive(file, &line) or_return
+        //     // process_directive(code, &line) or_return
         // }
         return nil
     }
 
     if !unicode.is_space(rune(line.line[0])) {
-        process_local_label(file, &line) or_return
+        process_local_label(code, &line) or_return
         return nil
     }
 
@@ -121,19 +134,19 @@ process_line :: proc(file: ^Source_File, line: string) -> (err: Line_Error) {
             column = line.token_start,
             expected = "mnemonic", found = token_str(token)
         }
-    case .word: process_static_data(file, &line, SIZE_OF_WORD) or_return
-    case .half: process_static_data(file, &line, SIZE_OF_HALF) or_return
-    case .byte: process_static_data(file, &line, SIZE_OF_BYTE) or_return
-    case .ascii: process_ascii(file, &line) or_return
-    case .align: process_align(file, &line) or_return
-    case: process_instruction(file, &line, mnem)  or_return
+    case .word: process_static_data(code, &line, SIZE_OF_WORD) or_return
+    case .half: process_static_data(code, &line, SIZE_OF_HALF) or_return
+    case .byte: process_static_data(code, &line, SIZE_OF_BYTE) or_return
+    case .ascii: process_ascii(code, &line) or_return
+    case .align: process_align(code, &line) or_return
+    case: process_instruction(code, &line, mnem)  or_return
     }
    
     return nil
 }
 
 @(private = "file")
-process_local_label :: proc(file: ^Source_File, line: ^Tokenizer) -> (err: Line_Error) {
+process_local_label :: proc(code: ^Code_Section, line: ^Tokenizer) -> (err: Line_Error) {
     token: string = ---
     ok: bool = ---
 
@@ -147,27 +160,27 @@ process_local_label :: proc(file: ^Source_File, line: ^Tokenizer) -> (err: Line_
     }
 
     // Ensure labels are word aligned
-    current_alignment := len(file.buffer) % SIZE_OF_WORD
+    current_alignment := len(code.buffer) % SIZE_OF_WORD
     alignment_padding := current_alignment == 0 ? 0 : SIZE_OF_WORD - current_alignment
     for _ in 0..<alignment_padding {
-        append(&file.buffer, 0)
+        append(&code.buffer, 0)
     }
 
     symbol_index: u32 = ---
-    if symbol_index, ok = file.symbol_map[token]; ok {
-        if file.symbol_table[symbol_index].offset < max(u32) {
+    if symbol_index, ok = code.symbol_map[token]; ok {
+        if code.symbol_table[symbol_index].offset != UNDEFINED_OFFSET {
             return Redefinition{ label = token }
         }
-        file.symbol_table[symbol_index].offset = u32(len(file.buffer))
+        code.symbol_table[symbol_index].offset = u32(len(code.buffer))
     } else { // create symbol table entry
-        file.symbol_map[token] = u32(len(file.symbol_table))
+        code.symbol_map[token] = u32(len(code.symbol_table))
         symbol_entry := Symbol_Table_Entry{
-            offset = u32(len(file.buffer)),
-            name = u32(len(file.string_table))
+            offset = u32(len(code.buffer)),
+            name = u32(len(code.string_table))
         }
-        append(&file.symbol_table, symbol_entry)
-        append(&file.string_table, token)
-        append(&file.string_table, 0)
+        append(&code.symbol_table, symbol_entry)
+        append(&code.string_table, token)
+        append(&code.string_table, 0)
     }
 
     _ = expect_token(line, ":") or_return
@@ -190,7 +203,7 @@ process_local_label :: proc(file: ^Source_File, line: ^Tokenizer) -> (err: Line_
 @(private = "file") STATIC_DATA_VALUE_NOT_ENCODABLE_BYTE_MESSAGE :: "value is not encodable as type 'byte'"
 
 @(private = "file")
-process_static_data :: proc(file: ^Source_File, line: ^Tokenizer, data_type_size: uint, depth: uint = 0) -> (size: uint, err: Line_Error) {
+process_static_data :: proc(code: ^Code_Section, line: ^Tokenizer, data_type_size: uint, depth: uint = 0) -> (size: uint, err: Line_Error) {
     assert(size_of(uint) >= 4)
     assert(data_type_size == SIZE_OF_WORD || data_type_size == SIZE_OF_HALF || data_type_size == SIZE_OF_BYTE)
     assert(depth <= 1)
@@ -211,19 +224,19 @@ process_static_data :: proc(file: ^Source_File, line: ^Tokenizer, data_type_size
         }
 
         // Save room for the array size before writing the data
-        array_length_offset := len(file.buffer)
+        array_length_offset := len(code.buffer)
         for _ in 0..<data_type_size {
-            append(&file.buffer, 0)
+            append(&code.buffer, 0)
         }
 
         array_length: uint = ---
         token, _ = tokenizer_next(line)
         mnem := mnem_from_token(token)
         #partial switch mnem {
-        case .word: array_length = process_static_data(file, line, SIZE_OF_WORD, depth = 1) or_return
-        case .half: array_length = process_static_data(file, line, SIZE_OF_HALF, depth = 1) or_return
-        case .byte: array_length = process_static_data(file, line, SIZE_OF_BYTE, depth = 1) or_return
-        case .ascii: array_length = process_ascii(file, line) or_return
+        case .word: array_length = process_static_data(code, line, SIZE_OF_WORD, depth = 1) or_return
+        case .half: array_length = process_static_data(code, line, SIZE_OF_HALF, depth = 1) or_return
+        case .byte: array_length = process_static_data(code, line, SIZE_OF_BYTE, depth = 1) or_return
+        case .ascii: array_length = process_ascii(code, line) or_return
         case:
             return 0, Unexpected_Token{
                 column = line.token_start,
@@ -231,7 +244,7 @@ process_static_data :: proc(file: ^Source_File, line: ^Tokenizer, data_type_size
             }
         }
 
-        // Inject the array size into file.buffer before the array data
+        // Inject the array size into code.buffer before the array data
         if array_length > data_type_max {
             err := Not_Encodable{
                 start_column = keyword_column,
@@ -246,7 +259,7 @@ process_static_data :: proc(file: ^Source_File, line: ^Tokenizer, data_type_size
         }
 
         array_length_le := u32le(array_length)
-        assign_at(&file.buffer, array_length_offset, ..mem.byte_slice(&array_length_le, data_type_size))
+        assign_at(&code.buffer, array_length_offset, ..mem.byte_slice(&array_length_le, data_type_size))
 
         return 0, nil
     }
@@ -277,7 +290,7 @@ process_static_data :: proc(file: ^Source_File, line: ^Tokenizer, data_type_size
         }
 
         value_le := u32le(value)
-        append(&file.buffer, ..mem.byte_slice(&value_le, data_type_size))
+        append(&code.buffer, ..mem.byte_slice(&value_le, data_type_size))
 
         array_length += 1
 
@@ -296,7 +309,7 @@ process_static_data :: proc(file: ^Source_File, line: ^Tokenizer, data_type_size
 }
 
 @(private = "file")
-process_ascii :: proc(file: ^Source_File, line: ^Tokenizer) -> (size: uint, err: Line_Error) {
+process_ascii :: proc(code: ^Code_Section, line: ^Tokenizer) -> (size: uint, err: Line_Error) {
     if _, err = expect_token(line, "\"", no_alloc = true); err != nil {
         err := err.(Unexpected_Token)
         err.expected = "string literal"
@@ -325,14 +338,14 @@ process_ascii :: proc(file: ^Source_File, line: ^Tokenizer) -> (size: uint, err:
             ch = line.line[column]
             switch ch {
                 case 'n':
-                    append(&file.buffer, '\n')
-                    continue
+                    append(&code.buffer, '\n') // TODO add test for string length with newline
                 case 't':
-                    append(&file.buffer, '\t')
-                    continue
+                    append(&code.buffer, '\t')
             }
+            string_length += 1
+            continue
         }
-        append(&file.buffer, ch)
+        append(&code.buffer, ch)
         string_length += 1
     }
 
@@ -344,7 +357,7 @@ process_ascii :: proc(file: ^Source_File, line: ^Tokenizer) -> (size: uint, err:
 @(private = "file") ALIGN_NON_POWER_OF_TWO_MESSAGE :: "alignment value must be a power of two"
 
 @(private = "file")
-process_align :: proc(file: ^Source_File, line: ^Tokenizer) -> (err: Line_Error) {
+process_align :: proc(code: ^Code_Section, line: ^Tokenizer) -> (err: Line_Error) {
     alignment := expect_integer(line) or_return
 
     if alignment < SIZE_OF_WORD {
@@ -362,9 +375,9 @@ process_align :: proc(file: ^Source_File, line: ^Tokenizer) -> (err: Line_Error)
         }
     }
 
-    alignment_padding := alignment - (len(file.buffer) % alignment)
+    alignment_padding := alignment - (len(code.buffer) % alignment)
     for _ in 0..<alignment_padding {
-        append(&file.buffer, 0)
+        append(&code.buffer, 0)
     }
 
     if token, ok := tokenizer_next(line); ok {
@@ -378,7 +391,7 @@ process_align :: proc(file: ^Source_File, line: ^Tokenizer) -> (err: Line_Error)
 }
 
 @(private = "file")
-process_instruction :: proc(file: ^Source_File, line: ^Tokenizer, mnem: Mnemonic) -> (err: Line_Error) {
+process_instruction :: proc(code: ^Code_Section, line: ^Tokenizer, mnem: Mnemonic) -> (err: Line_Error) {
     instr := encode_instruction_from_mnemonic(line, mnem) or_return
 
     if token, ok := tokenizer_next(line); ok {
@@ -389,28 +402,30 @@ process_instruction :: proc(file: ^Source_File, line: ^Tokenizer, mnem: Mnemonic
     }
 
     if relocation_symbol, ok := instr.relocation_symbol.(string); ok {
-        symbol_index, ok := file.symbol_map[relocation_symbol]
+        symbol_index, ok := code.symbol_map[relocation_symbol]
         if !ok { // create symbol table entry
-            symbol_index = u32(len(file.symbol_table))
-            file.symbol_map[relocation_symbol] = symbol_index
+            symbol_index = u32(len(code.symbol_table))
+            code.symbol_map[relocation_symbol] = symbol_index
             symbol_entry := Symbol_Table_Entry{
-                offset = max(u32), // unknown at this time
-                name = u32(len(file.string_table))
+                offset = UNDEFINED_OFFSET, // unknown at this time
+                name = u32(len(code.string_table))
             }
-            append(&file.symbol_table, symbol_entry)
-            append(&file.string_table, relocation_symbol)
-            append(&file.string_table, 0)
+            append(&code.symbol_table, symbol_entry)
+            append(&code.string_table, relocation_symbol)
+            append(&code.string_table, 0)
         }
         relocation_entry := Relocation_Table_Entry{
-            offset = u32(len(file.buffer)),
+            offset = u32(len(code.buffer)),
             symbol = symbol_index
         }
-        append(&file.relocation_table, relocation_entry)
+        append(&code.relocation_table, relocation_entry)
     }
 
-    append(&file.buffer, ..mem.byte_slice(&instr.machine_word, size_of(u32le)))
-    if machine_word2, ok := instr.machine_word2.(u32le); ok {
-        append(&file.buffer, ..mem.byte_slice(&machine_word2, size_of(u32le)))
+    machine_word_le := u32le(instr.machine_word)
+    append(&code.buffer, ..mem.byte_slice(&machine_word_le, size_of(u32le)))
+    if machine_word2, ok := instr.machine_word2.(u32); ok {
+        machine_word_le = u32le(machine_word2)
+        append(&code.buffer, ..mem.byte_slice(&machine_word_le, size_of(u32le)))
     }
 
     return nil
