@@ -1,16 +1,17 @@
 package auras
 
 import "core:math/bits"
+import "core:fmt"
 
 @(private)
 Instruction :: struct {
-    machine_word: u32le,
-    machine_word2: Maybe(u32le),
+    machine_word: u32,
+    machine_word2: Maybe(u32),
     relocation_symbol: Maybe(string),
 }
 
 // Return instruction encoding from string
-encode_machine_word :: proc(line: string) -> (machine_word: u32le) {
+encode_machine_word :: proc(line: string) -> (machine_word: u32) {
     line := Tokenizer{ line = line }
     token, ok := tokenizer_next(&line)
     if !ok { return 0 }
@@ -21,6 +22,7 @@ encode_machine_word :: proc(line: string) -> (machine_word: u32le) {
     case:
         instr, err := encode_instruction_from_mnemonic(&line, mnem)
         if err == nil { return instr.machine_word }
+        fmt.println(err)
         e: Unexpected_Token = ---
         e, ok = err.(Unexpected_Token)
         if ok {
@@ -91,7 +93,7 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding) ->
         case '+':
             machine_word.p = true
         case '\n':
-            return Instruction{ machine_word = u32le(machine_word) }, nil
+            return Instruction{ machine_word = u32(machine_word) }, nil
         }
     }
 
@@ -121,7 +123,7 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding) ->
                     return Instruction{}, err
                 }
             }
-            return Instruction{ machine_word = u32le(machine_word) }, nil
+            return Instruction{ machine_word = u32(machine_word) }, nil
         }
     }
 
@@ -141,7 +143,7 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding) ->
                 return Instruction{}, err
             }
         }
-        return Instruction{ machine_word = u32le(machine_word) }, nil
+        return Instruction{ machine_word = u32(machine_word) }, nil
     }
 
     if machine_word.i {
@@ -164,7 +166,7 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding) ->
     }
 
     if machine_word.p { // ']' seen before shift
-        return Instruction{ machine_word = u32le(machine_word) }, nil
+        return Instruction{ machine_word = u32(machine_word) }, nil
     }
 
     _ = expect_token(line, "]") or_return
@@ -172,7 +174,7 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding) ->
         machine_word.w = true
     }
 
-    return Instruction{ machine_word = u32le(machine_word) }, nil
+    return Instruction{ machine_word = u32(machine_word) }, nil
 
     encode_offset_and_shift :: proc "contextless" (v: uint) -> (offset: u32, shift: u32, err: Line_Error) {
         // Value is encodable without shift
@@ -225,7 +227,7 @@ encode_move_from_psr :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Line
     machine_word := Move_From_PSR_Encoding(0x00018000)
 
     machine_word.rd = expect_register(line) or_return
-    return Instruction{ machine_word = u32le(machine_word) }, nil
+    return Instruction{ machine_word = u32(machine_word) }, nil
 }
 
 
@@ -268,7 +270,7 @@ encode_set_clear_psr_bits :: proc(line: ^Tokenizer, flags: Set_Clear_PSR_Bits_En
         machine_word.operand = u32(v)
     }
    
-    return Instruction{ machine_word = u32le(machine_word) }, nil
+    return Instruction{ machine_word = u32(machine_word) }, nil
 }
 
 
@@ -290,7 +292,7 @@ Data_Processing_Encoding :: bit_field u32 {
     _:        u32    | 2,
 }
 
-Opcode :: enum {
+Opcode :: enum u32 {
     add = 0b000,
     adc = 0b001,
     sub = 0b010,
@@ -323,7 +325,7 @@ encode_data_processing :: proc(line: ^Tokenizer, flags: Data_Processing_Encoding
     machine_word := Data_Processing_Encoding(0x40000000) | flags
 
     if variant == .No_Operation { // nop
-        return Instruction{ machine_word = u32le(machine_word) }, nil
+        return Instruction{ machine_word = u32(machine_word) }, nil
     }
 
     if variant != .No_Writeback { // All except tst, teq, cmp, cpn
@@ -343,7 +345,7 @@ encode_data_processing :: proc(line: ^Tokenizer, flags: Data_Processing_Encoding
         machine_word.rm = expect_register(line) or_return
 
         if variant == .No_Rn { // mov, not, notk
-            return Instruction{ machine_word = u32le(machine_word) }, nil
+            return Instruction{ machine_word = u32(machine_word) }, nil
         }
 
         _ = expect_token(line, ",") or_return
@@ -389,7 +391,7 @@ encode_data_processing :: proc(line: ^Tokenizer, flags: Data_Processing_Encoding
                     return Instruction{}, err
                 }
             }
-            return Instruction{ machine_word = u32le(machine_word) }, nil
+            return Instruction{ machine_word = u32(machine_word) }, nil
         case "lsl":
         case "asr":
             machine_word.a = true
@@ -431,7 +433,7 @@ encode_data_processing :: proc(line: ^Tokenizer, flags: Data_Processing_Encoding
         }
     }
 
-    return Instruction{ machine_word = u32le(machine_word) }, nil
+    return Instruction{ machine_word = u32(machine_word) }, nil
 
     encode_immediate_and_shift :: proc(v: uint) -> (immediate: u32, shift: u32, err: Line_Error) {
         if v < (1 << 9) || (int(v) >> 9) == -1 { // Encodable without shift
@@ -505,7 +507,7 @@ encode_software_interrupt :: proc(line: ^Tokenizer) -> (instr: Instruction, err:
     machine_word := Software_Interrupt_Encoding(0xE0000000)
 
     if token, ok = tokenizer_next(line); !ok { // end of line
-        return Instruction{ machine_word = u32le(machine_word) }, nil
+        return Instruction{ machine_word = u32(machine_word) }, nil
     }
 
     op: Operand = ---
@@ -534,7 +536,7 @@ encode_software_interrupt :: proc(line: ^Tokenizer) -> (instr: Instruction, err:
         }
     }
 
-    return Instruction{ machine_word = u32le(machine_word) }, nil
+    return Instruction{ machine_word = u32(machine_word) }, nil
 }
 
 
@@ -605,7 +607,7 @@ encode_branch :: proc(line: ^Tokenizer, flags: Branch_Encoding) -> (instr: Instr
         }
     }
 
-    return Instruction{ machine_word = u32le(machine_word), relocation_symbol = relocation_symbol }, nil
+    return Instruction{ machine_word = u32(machine_word), relocation_symbol = relocation_symbol }, nil
 }
 
 
@@ -657,7 +659,7 @@ encode_move_immediate :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Lin
             }
         }
         machine_word.immediate = u32(imm)
-        return Instruction{ machine_word = u32le(machine_word) }, nil
+        return Instruction{ machine_word = u32(machine_word) }, nil
     }
 
     immediate_start_column = line.token_start
@@ -674,7 +676,7 @@ encode_move_immediate :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Lin
     }
   
     machine_word.immediate = u32(imm)
-    return Instruction{ machine_word = u32le(machine_word) }, nil
+    return Instruction{ machine_word = u32(machine_word) }, nil
 }
 
 
@@ -697,6 +699,7 @@ encode_m32 :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Line_Error) {
     rd := expect_register(line) or_return
     machine_word.rd = rd
     machine_word2.rd = rd
+    machine_word2.rm = rd
 
     _ = expect_token(line, ",") or_return
 
@@ -733,7 +736,7 @@ encode_m32 :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Line_Error) {
             fallthrough
         case imm < (1 << 24):
             machine_word.immediate = u32(imm)
-            instr.machine_word = u32le(machine_word)
+            instr.machine_word = u32(machine_word)
             return instr, nil
         // double instruction
         case (negated && int(imm) >> 31 == -1) || imm < (1 << 32):
@@ -755,8 +758,8 @@ encode_m32 :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Line_Error) {
         }
     }
 
-    instr.machine_word = u32le(machine_word)
-    instr.machine_word2 = u32le(machine_word2)
+    instr.machine_word = u32(machine_word)
+    instr.machine_word2 = u32(machine_word2)
     return instr, nil
 }
 

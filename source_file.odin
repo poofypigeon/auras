@@ -44,6 +44,7 @@ cleanup_source_file :: proc(file: ^Source_File) {
     delete(file.symbol_table)
 }
 
+// TODO error for reference to undeclared label
 process_text :: proc(file: ^Source_File, text: string) -> (ok: bool) {
     text := text
     line_number: uint = 0
@@ -80,7 +81,7 @@ process_text :: proc(file: ^Source_File, text: string) -> (ok: bool) {
             assert(mvi_word^ & 0x00FF_FFFF == 0x0000_0000, "unexpected instruction at m32 relocation offset")
 
             add_word := (^u32le)(&file.buffer[relocation_entry.offset + SIZE_OF_WORD])
-            assert(add_word^ & 0x00FF_FFFF == 0x0001_6000, "unexpected instruction at m32 relocation offset + 4")
+            assert(add_word^ & 0x000F_FFFF == 0x0001_6000, "unexpected instruction at m32 relocation offset + 4")
 
             offset_le := u32le(symbol_entry.offset)
             mvi_word^ |= offset_le & 0x00FF_FFFF
@@ -325,12 +326,12 @@ process_ascii :: proc(file: ^Source_File, line: ^Tokenizer) -> (size: uint, err:
             ch = line.line[column]
             switch ch {
                 case 'n':
-                    append(&file.buffer, '\n')
-                    continue
+                    append(&file.buffer, '\n') // TODO add test for string length with newline
                 case 't':
                     append(&file.buffer, '\t')
-                    continue
             }
+            string_length += 1
+            continue
         }
         append(&file.buffer, ch)
         string_length += 1
@@ -408,9 +409,11 @@ process_instruction :: proc(file: ^Source_File, line: ^Tokenizer, mnem: Mnemonic
         append(&file.relocation_table, relocation_entry)
     }
 
-    append(&file.buffer, ..mem.byte_slice(&instr.machine_word, size_of(u32le)))
-    if machine_word2, ok := instr.machine_word2.(u32le); ok {
-        append(&file.buffer, ..mem.byte_slice(&machine_word2, size_of(u32le)))
+    machine_word_le := u32le(instr.machine_word)
+    append(&file.buffer, ..mem.byte_slice(&machine_word_le, size_of(u32le)))
+    if machine_word2, ok := instr.machine_word2.(u32); ok {
+        machine_word_le = u32le(machine_word2)
+        append(&file.buffer, ..mem.byte_slice(&machine_word_le, size_of(u32le)))
     }
 
     return nil

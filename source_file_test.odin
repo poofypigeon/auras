@@ -147,7 +147,7 @@ test_m32_integer_literal :: proc(t: ^testing.T) {
     testing.expect(t, err == nil)
 
     // file.buffer
-    expected_buffer_words := []u32le{ 0xC1AD_BEEF, 0x7101_60DE }
+    expected_buffer_words := []u32le{ 0xC1AD_BEEF, 0x7111_60DE }
     testing.expect(t, bytes.compare(file.buffer[:], mem.slice_to_bytes(expected_buffer_words)) == 0)
     // file.symbol_table
     testing.expect_value(t, len(file.symbol_table), 0)
@@ -168,7 +168,7 @@ test_m32_relocation :: proc(t: ^testing.T) {
     testing.expect(t, err == nil)
 
     // file.buffer
-    expected_buffer_words := []u32le{ 0xC100_0000, 0x7101_6000 }
+    expected_buffer_words := []u32le{ 0xC100_0000, 0x7111_6000 }
     testing.expect(t, bytes.compare(file.buffer[:], mem.slice_to_bytes(expected_buffer_words)) == 0)
     // file.symbol_table
     testing.expect_value(t, len(file.symbol_table), 1)
@@ -226,7 +226,7 @@ test_multiple_labels_and_relocations :: proc(t: ^testing.T) {
     testing.expect(t, err == nil)
 
     // file.buffer
-    expected_buffer_words := []u32le{ 0xC100_0000, 0x7101_6000, 0x9000_0000 }
+    expected_buffer_words := []u32le{ 0xC100_0000, 0x7111_6000, 0x9000_0000 }
     testing.expect(t, bytes.compare(file.buffer[:], mem.slice_to_bytes(expected_buffer_words)) == 0)
     // file.symbol_table
     testing.expect_value(t, len(file.symbol_table), 2)
