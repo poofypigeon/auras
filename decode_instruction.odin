@@ -118,7 +118,7 @@ decode_set_clear_psr_bits :: proc(machine_word: u32) -> (instr_str: string, ok: 
 @(private = "file")
 decode_data_processing :: proc(machine_word: u32) -> (instr_str: string, ok: bool) {
     instr := Data_Processing_Encoding(machine_word)
-    if instr.operand2 > 15 { return "", false }
+    if !instr.i && instr.operand2 > 15 { return "", false }
 
     sb := strings.builder_make()
 
@@ -145,7 +145,12 @@ decode_data_processing :: proc(machine_word: u32) -> (instr_str: string, ok: boo
     if !instr.i {
         strings.write_byte(&sb, 'r')
     }
-    strings.write_uint(&sb, uint(instr.operand2))
+    operand2 := instr.operand2
+    if operand2 >> 9 == 1 {
+        operand2 |= 0xFFFFFC00
+    }
+    strings.write_int(&sb, int(i32(operand2)))
+
     if instr.shift > 0 {
         if (!instr.d && instr.a) || !instr.a {
             strings.write_string(&sb, " ls")
