@@ -195,11 +195,21 @@ test_data_transfer_post_increment_writeback_immediate :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_data_implicitly_shifted_immediate :: proc(t: ^testing.T) {
+test_data_transfer_implicitly_shifted_immediate :: proc(t: ^testing.T) {
     testing.expect_value(t, machine_word("ld r1, [r2 + 0x2AA0]"),  0x1120_12AA)
     testing.expect_value(t, machine_word("ld r1, [r2 + 0x14400]"), 0x1120_2851)
     testing.expect_value(t, machine_word("ld r1, [r2 + 0x6480]"),  0x1120_1992)
     testing.expect_value(t, machine_word("ld r1, [r2 + 0x34100]"), 0x1120_2341)
+}
+
+@(test)
+test_data_transfer_push:: proc(t: ^testing.T) {
+    testing.expect_value(t, machine_word("push lr"), 0x3FE2_0404)
+}
+
+@(test)
+test_data_transfer_pop :: proc(t: ^testing.T) {
+    testing.expect_value(t, machine_word("pop lr"), 0x1FE8_0004)
 }
 
 

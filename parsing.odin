@@ -27,6 +27,7 @@ Mnemonic :: enum c.int32_t {
     // Instructions
     ld,   ldb,  ldh,  ldsb, ldsh,
     st,   stb,  sth,
+    push, pop,
     smv,  scl,  sst,  
     add,  adc,  sub,  sbc,  and,  or,  xor,  btc, 
     addk, adck, subk, sbck, andk, ork, xork, btck,

@@ -61,13 +61,17 @@ Data_Transfer_Encoding :: bit_field u32 {
 @(private = "file") DATA_TRANSFER_SHIFT_OUT_OF_RANGE_MESSAGE    :: "shift value must be in the range 0 to 30"
 
 @(private = "file")
-encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding) -> (instr: Instruction, err: Line_Error) {
+encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding, push_pop: bool = false) -> (instr: Instruction, err: Line_Error) {
     token: string = ---
     ok: bool = ---
 
     machine_word := Data_Transfer_Encoding(0x00000000) | flags
    
     machine_word.rd = expect_register(line) or_return
+
+    if push_pop {
+        return Instruction{ machine_word = u32(machine_word) }, nil
+    }
 
     _ = expect_token(line, ",") or_return
     _ = expect_token(line, "[") or_return
@@ -781,6 +785,8 @@ encode_instruction_from_mnemonic :: proc(line: ^Tokenizer, mnem: Mnemonic) -> (i
     case .st:   instr = encode_data_transfer(line, Data_Transfer_Encoding{                     s = true }) or_return
     case .stb:  instr = encode_data_transfer(line, Data_Transfer_Encoding{ b = true,           s = true }) or_return
     case .sth:  instr = encode_data_transfer(line, Data_Transfer_Encoding{ h = true,           s = true }) or_return
+    case .push: instr = encode_data_transfer(line, Data_Transfer_Encoding{ offset = 4, n = true, w = true, rm = 14, i = true, s = true }, push_pop = true) or_return
+    case .pop:  instr = encode_data_transfer(line, Data_Transfer_Encoding{ offset = 4,           p = true, rm = 14, i = true           }, push_pop = true) or_return
     // Move From PSR
     case .smv:  instr = encode_move_from_psr(line) or_return
     // Set/Clear PSR Bits
@@ -856,7 +862,7 @@ encode_instruction_from_mnemonic :: proc(line: ^Tokenizer, mnem: Mnemonic) -> (i
     case .swi:  instr = encode_software_interrupt(line) or_return
     // m32 Pseudo-Instruction
     case .m32:  instr = encode_m32(line) or_return
-    case .invalid, .word, .half, .byte, .ascii, .align:
+    case .invalid, .word, .half, .byte, .ascii, .align: panic("mnemonic should be unreachable")
     }
 
     return instr, nil
