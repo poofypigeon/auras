@@ -87,7 +87,7 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding, pu
         if token, ok = optional_token(line, "+", "-", eol = true); !ok {
             return Instruction{}, Unexpected_Token{
                 column = line.token_start,
-                expected = "'+' or '-'", found = token_str(token)
+                expected = "'+' or '-'", found = token_str(token),
             }
         }
         switch token[0] {

@@ -49,12 +49,13 @@ code_section_cleanup :: proc(code: ^Code_Section) {
 
 code_from_text :: proc(text: string) -> (code: Code_Section, ok: bool) {
     code = code_section_init()
-    text := text
+    text_ref := text // preserve original text string
 
-    line_number: uint = 0
-    for line_text in strings.split_lines_iterator(&text) {
+    line_number: uint = 1
+    for line_text in strings.split_lines_iterator(&text_ref) {
         if err := process_line(&code, line_text); err != nil {
-            print_line_error(line_text, line_number, err)
+            // code_from_text is going to be replaced so just passing empty file_path for now
+            print_line_error("", line_number, line_text, err)
             code_section_cleanup(&code)
             return Code_Section{}, false
         }
@@ -64,11 +65,23 @@ code_from_text :: proc(text: string) -> (code: Code_Section, ok: bool) {
     for relocation_entry in code.relocation_table {
         symbol_entry := code.symbol_table[relocation_entry.symbol]
         if symbol_entry.offset == UNDEFINED_OFFSET {
-            // TODO this error message needs to be fleshed out and properly structured
             symbol_string := runtime.cstring_to_string(cstring(&code.string_table[symbol_entry.name]))
-            fmt.printfln("'%s' is referenced but not defined", symbol_string)
-            code_section_cleanup(&code)
-            return Code_Section{}, false
+            text_ref = text
+            line_number = 1
+            for line_text in strings.split_lines_iterator(&text_ref) {
+                line := Tokenizer{ line = line_text }
+                for token in tokenizer_next(&line) {
+                    if token == symbol_string {
+                        err := Undefined_Symbol{ symbol = symbol_string, column = line.token_start }
+                        print_line_error("", line_number, line_text, err)
+                        code_section_cleanup(&code)
+                        return Code_Section{}, false
+                    }
+                }
+                line_number += 1
+            }
+            fmt.println("line_number:", line_number)
+            panic("undefined symbol not found in text")
         }
 
         highest_nybble := code.buffer[relocation_entry.offset + SIZE_OF_WORD-1] >> 4
@@ -169,7 +182,10 @@ process_local_label :: proc(code: ^Code_Section, line: ^Tokenizer) -> (err: Line
     symbol_index: u32 = ---
     if symbol_index, ok = code.symbol_map[token]; ok {
         if code.symbol_table[symbol_index].offset != UNDEFINED_OFFSET {
-            return Redefinition{ label = token }
+            return Redefinition{
+                column = line.token_start,
+                label = token,
+            }
         }
         code.symbol_table[symbol_index].offset = u32(len(code.buffer))
     } else { // create symbol table entry
