@@ -69,6 +69,46 @@ Operand :: union {
 
 quoted_string :: distinct string
 
+Register :: distinct u32
+
+Symbol :: distinct string
+
+Line_Error :: union {
+    Unexpected_EOL,
+    Unexpected_Token,
+    Not_Encodable,
+    Redefinition,
+    Outside_Section,
+}
+
+Unexpected_EOL :: struct {
+    line_number: uint,
+    column: uint,
+}
+
+Unexpected_Token :: struct {
+    line_number: uint,
+    column: uint,
+    expected: union { string, [dynamic]string },
+    found: union { string, quoted_string},
+}
+
+Not_Encodable :: struct {
+    line_number: uint,
+    start_column: uint,
+    end_column: uint,
+    message: string,
+}
+
+Redefinition :: struct {
+    line_number: uint,
+    label: string,
+}
+
+Outside_Section :: struct {
+    line: uint,
+}
+
 expect_register :: proc(line: ^Tokenizer) -> (register: u32, err: Line_Error) {
     token: string = ---
     ok: bool = ---

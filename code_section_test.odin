@@ -20,8 +20,8 @@ produces_unexpected_token_error :: #force_inline proc(file: ^Code_Section, str: 
 
 @(test)
 test_empty_line :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     testing.expect(t, process_line(&file, "")                   == nil)
     testing.expect(t, process_line(&file, "    ")               == nil)
@@ -31,32 +31,32 @@ test_empty_line :: proc(t: ^testing.T) {
 
 @(test)
 test_local_label_non_label_character :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     testing.expect(t, produces_unexpected_token_error(&file, "0"))
 }
 
 @(test)
 test_local_label_missing_colon :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     testing.expect(t, produces_unexpected_token_error(&file, "L1"))
 }
 
 @(test)
 test_local_label_unexpected_token :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     testing.expect(t, produces_unexpected_token_error(&file, "L1:!"))
 }
 
 @(test)
 test_local_label :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err := process_line(&file, "L1:")
     testing.expect(t, err == nil)
@@ -79,8 +79,8 @@ test_local_label :: proc(t: ^testing.T) {
 
 @(test)
 test_local_label_redefinition :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err: Line_Error
     err = process_line(&file, "L1:")
@@ -91,16 +91,16 @@ test_local_label_redefinition :: proc(t: ^testing.T) {
 
 @(test)
 test_invalid_mnemonic :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     testing.expect(t, produces_unexpected_token_error(&file, "    bad"))
 }
 
 @(test)
 test_instruction_extraneous_token :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    b label!"))
     testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    nop!"))
@@ -119,8 +119,8 @@ test_instruction_extraneous_token :: proc(t: ^testing.T) {
 
 @(test)
 test_general_instruction :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err := process_line(&file, "    mvi r1, 0xAA")
     testing.expect(t, err == nil)
@@ -140,8 +140,8 @@ test_general_instruction :: proc(t: ^testing.T) {
 
 @(test)
 test_m32_integer_literal :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err := process_line(&file, "    m32 r1, 0xDEAD_BEEF")
     testing.expect(t, err == nil)
@@ -161,8 +161,8 @@ test_m32_integer_literal :: proc(t: ^testing.T) {
 
 @(test)
 test_m32_relocation :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err := process_line(&file, "    m32 r1, L1")
     testing.expect(t, err == nil)
@@ -187,8 +187,8 @@ test_m32_relocation :: proc(t: ^testing.T) {
 
 @(test)
 test_branch_relocation :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err := process_line(&file, "    beq L1")
     testing.expect(t, err == nil)
@@ -212,8 +212,8 @@ test_branch_relocation :: proc(t: ^testing.T) {
 
 @(test)
 test_multiple_labels_and_relocations :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err: Line_Error
     err = process_line(&file, "L1:")
@@ -250,8 +250,8 @@ test_multiple_labels_and_relocations :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_out_of_range :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err: Line_Error
     ok: bool
@@ -279,8 +279,8 @@ test_static_data_out_of_range :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_unexpected_token :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     testing.expect(t, produces_unexpected_token_error(&file, "    word!"))
     testing.expect(t, produces_unexpected_token_error(&file, "    word 0,!"))
@@ -288,8 +288,8 @@ test_static_data_unexpected_token :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_single_value :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err: Line_Error
     err = process_line(&file, "    word 0xDEAD_BEEF")
@@ -320,8 +320,8 @@ test_static_data_single_value :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_multiple_values :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err: Line_Error
     err = process_line(&file, "    word 0, 1, 2, 3")
@@ -341,8 +341,8 @@ test_static_data_multiple_values :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_auto_length_unexpected_token :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     testing.expect(t, produces_unexpected_token_error(&file, "    word *!"))
     testing.expect(t, produces_unexpected_token_error(&file, "    word * word!"))
@@ -351,8 +351,8 @@ test_static_data_auto_length_unexpected_token :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_multiple_values_auto_length :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err: Line_Error
     err = process_line(&file, "    word * word 0, 1, 2, 3")
@@ -372,8 +372,8 @@ test_static_data_multiple_values_auto_length :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_ascii_unexpected_token :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err := process_line(&file, "    ascii!")
     _, ok := err.(Unexpected_Token)
@@ -382,8 +382,8 @@ test_static_data_ascii_unexpected_token :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_ascii_unexpected_eol :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err: Line_Error
     ok: bool
@@ -398,8 +398,8 @@ test_static_data_ascii_unexpected_eol :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_ascii :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err := process_line(&file, "    ascii \"\tabc\n\"")
     testing.expect(t, err == nil)
@@ -410,8 +410,8 @@ test_static_data_ascii :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_ascii_auto_length :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err := process_line(&file, "    byte * ascii \"ascii\"")
     testing.expect(t, err == nil)
@@ -422,8 +422,8 @@ test_static_data_ascii_auto_length :: proc(t: ^testing.T) {
 
 @(test)
 test_align_non_power_of_two :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err: Line_Error
     ok: bool
@@ -438,8 +438,8 @@ test_align_non_power_of_two :: proc(t: ^testing.T) {
 
 @(test)
 test_align :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err: Line_Error
     err = process_line(&file, "    byte 0xAA")
@@ -459,8 +459,8 @@ test_align :: proc(t: ^testing.T) {
 
 @(test)
 test_label_alignment :: proc(t: ^testing.T) {
-    file := code_section_init()
-    defer code_section_cleanup(&file)
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
 
     err: Line_Error
     err = process_line(&file, "    byte 0xAA")
