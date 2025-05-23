@@ -189,6 +189,22 @@ expect_register_or_integer :: proc(line: ^Tokenizer) -> (op: Operand, err: Line_
     return op, nil
 }
 
+expect_identifier :: proc(line: ^Tokenizer, allow_eol: bool = false) -> (identifier: string, err: Line_Error) {
+    token, eol := tokenizer_next(line) or_return
+    if eol {
+        if !allow_eol {
+            return "", Unexpected_EOL{ column = line.token_start }
+        }
+        return "", nil
+    } else if !is_symbol_char(token[0]) {
+        return "", Unexpected_Token{
+            column = line.token_start,
+            expected = "identifier", found = token_str(token)
+        }
+    }
+    return token, nil
+}
+
 expect_token :: proc(line: ^Tokenizer, one_of: ..string, no_alloc: bool = false) -> (token: string, err: Line_Error) {
     ok: bool = ---
 
@@ -279,7 +295,7 @@ parse_operand :: proc(token: string) -> (op: Operand, err: Line_Error) {
             byte_offset += 1
         }
         return v, nil
-    case unicode.is_alpha(rune(token[0])), token[0] == '_':
+    case is_symbol_char(token[0]):
         return Symbol(token), nil
     }
 
@@ -335,13 +351,13 @@ tokenizer_next :: proc(tokenizer: ^Tokenizer) -> (token: string, eol: bool, err:
     }
 
     // Any non-alphanumeric characters besides whitespace and underscores are distinct tokens
-    if !is_symbol_char(line[tokenizer.token_start]) {
+    if !(is_symbol_char(line[tokenizer.token_start]) || unicode.is_number(rune(line[tokenizer.token_start]))) {
         return line[tokenizer.token_start:tokenizer.token_end], false, nil
     }
 
     // Consume characters until a non-label character is encountered
     for tokenizer.token_end < len(line) {
-        if !is_symbol_char(line[tokenizer.token_end]) do break
+        if !(is_symbol_char(line[tokenizer.token_end]) || unicode.is_number(rune(line[tokenizer.token_end]))) do break
         tokenizer.token_end += 1
     }
     return line[tokenizer.token_start:tokenizer.token_end], false, nil
@@ -356,5 +372,5 @@ tokenizer_curr :: #force_inline proc(tokenizer: ^Tokenizer) -> string {
 }
 
 is_symbol_char :: #force_inline proc(c: u8) -> bool {
-    return unicode.is_alpha(rune(c)) || unicode.is_number(rune(c)) || c == '_'
+    return unicode.is_alpha(rune(c)) || c == '_'
 }
