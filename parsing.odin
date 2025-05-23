@@ -6,6 +6,7 @@ import "base:runtime"
 
 import "core:fmt"
 import "core:mem"
+import "core:os"
 import "core:strconv"
 import "core:strings"
 import "core:unicode"
@@ -18,7 +19,6 @@ MAX_MNEMONIC_LEN :: 5
 SIZE_OF_WORD :: 4
 SIZE_OF_HALF :: 2
 SIZE_OF_BYTE :: 1
-
 
 Mnemonic :: enum c.int32_t {
     invalid,
@@ -57,6 +57,9 @@ mnem_from_token :: proc(token: string) -> Mnemonic {
     return parse_mnemonic(cstring(raw_data(buffer[:])), len(token))
 }
 
+Register :: distinct u32
+Symbol :: distinct string
+
 Operand :: union {
     Register,
     uint,
@@ -64,42 +67,7 @@ Operand :: union {
     string,
 }
 
-Register :: distinct u32
-
-Symbol :: distinct string
-
-Line_Error :: union {
-    Unexpected_EOL,
-    Unexpected_Token,
-    Not_Encodable,
-    Redefinition,
-}
-
 quoted_string :: distinct string
-
-Unexpected_EOL :: struct {
-    line: uint,
-    column: uint,
-}
-
-Unexpected_Token :: struct {
-    line: uint,
-    column: uint,
-    expected: union { string, [dynamic]string },
-    found: union { string, quoted_string},
-}
-
-Not_Encodable :: struct {
-    line: uint,
-    start_column: uint,
-    end_column: uint,
-    message: string,
-}
-
-Redefinition :: struct {
-    line: uint,
-    label: string,
-}
 
 expect_register :: proc(line: ^Tokenizer) -> (register: u32, err: Line_Error) {
     token: string = ---
@@ -138,7 +106,7 @@ expect_integer :: proc(line: ^Tokenizer) -> (value: uint, err: Line_Error) {
     if token, ok = tokenizer_next(line); !ok {
         return 0, Unexpected_Token{
             column = line.token_start,
-            expected = "integer literal", found = quoted_string(token)
+            expected = "integer literal", found = quoted_string(token),
         }
     }
 
@@ -146,7 +114,7 @@ expect_integer :: proc(line: ^Tokenizer) -> (value: uint, err: Line_Error) {
     if op, ok = parse_operand(token); !ok {
         return 0, Unexpected_Token{
             column = line.token_start,
-            expected = "integer literal", found = quoted_string(token)
+            expected = "integer literal", found = quoted_string(token),
         }
     }
 
@@ -154,7 +122,7 @@ expect_integer :: proc(line: ^Tokenizer) -> (value: uint, err: Line_Error) {
     if imm, ok = op.(uint); !ok {
         return 0, Unexpected_Token{
             column = line.token_start,
-            expected = "integer literal", found = operand_str(op)
+            expected = "integer literal", found = operand_str(op),
         }
     }
 
@@ -168,14 +136,14 @@ expect_register_or_integer :: proc(line: ^Tokenizer) -> (op: Operand, err: Line_
     if token, ok = tokenizer_next(line); !ok {
         return nil, Unexpected_Token{
             column = line.token_start,
-            expected = "register or integer literal", found = quoted_string(token)
+            expected = "register or integer literal", found = quoted_string(token),
         }
     }
 
     if op, ok = parse_operand(token); !ok {
         return nil, Unexpected_Token{
             column = line.token_start,
-            expected = "register or integer literal", found = quoted_string(token)
+            expected = "register or integer literal", found = quoted_string(token),
         }
     }
 
@@ -183,7 +151,8 @@ expect_register_or_integer :: proc(line: ^Tokenizer) -> (op: Operand, err: Line_
     case string, Symbol:
         return nil, Unexpected_Token{
             column = line.token_start,
-            expected = "register or integer literal", found = operand_str(op) }
+            expected = "register or integer literal", found = operand_str(op),
+        }
     }
 
     return op, nil
@@ -256,102 +225,4 @@ parse_operand :: proc(token: string) -> (op: Operand, ok: bool) {
     }
 
     return token, false
-}
-
-operand_str :: #force_inline proc(op: Operand) -> union { string, quoted_string } {
-    switch v in op {
-    case Register: return string("register")
-    case uint:     return string("integer literal")
-    case Symbol:   return quoted_string(v)
-    case string:   return quoted_string(v)
-    case:          panic("invalid operand")
-    }
-}
-
-token_str :: #force_inline proc(token: string) -> union { string, quoted_string } {
-    op, _ := parse_operand(token)
-    if symbol, ok := op.(Symbol); ok {
-        #partial switch mnem_from_token(string(symbol)) {
-        case .invalid, .word, .half, .byte, .ascii, .align:
-            return quoted_string(op.(Symbol))
-        case:
-            return string("mnemonic")
-        }
-    }
-    return operand_str(op)
-}
-
-// TODO can I make this less of a mess?
-print_line_error :: proc(line_text: string, line_number: uint, err: Line_Error) {
-    line_text := long_string_trail_off(line_text)
-    defer delete(line_text)
-
-    switch e in err {
-    case Unexpected_EOL:
-        fmt.printf("%d:%d: ", line_number, e.column, flush = false)
-        fmt.print("\x1B[31merror: \x1B[0m", flush = false)
-        fmt.println("unexpected 'eol'", flush = false)
-        fmt.println(line_text, flush = false)
-        for i in 0..<e.column {
-            fmt.print(" ", sep = "", flush = false)
-        }
-        fmt.println("\x1B[32m^\x1B[0m")
-    case Unexpected_Token:
-        fmt.printf("%d:%d: ", line_number, e.column, flush = false)
-        fmt.print("\x1B[31merror: \x1B[0m", flush = false)
-        fmt.print("expected ", flush = false)
-        switch expected in e.expected {
-        case string:
-            fmt.print(expected, flush = false)
-        case [dynamic]string:
-            switch len(expected) {
-            case 0: panic("Unexpected_Token.expected dynamic array is empty")
-            case 1: fmt.printf("'%s'", expected[0], flush = false)
-            case 2: fmt.printf("'%s' or '%s'", expected[0], expected[1], flush = false)
-            case:
-                for token, i in expected {
-                    if i == len(expected)-1 {
-                        fmt.printf("or '%s'", token, flush = false)
-                        continue
-                    }
-                    fmt.printf("'%s', ", token, flush = false)
-                }
-            }
-            delete(expected)
-        }
-        fmt.print(", found ", flush = true)
-        switch found in e.found {
-            case string: fmt.println(found, flush = false)
-            case quoted_string: fmt.printfln("'%s'", found, flush = false)
-        }
-        fmt.println(line_text, flush = false)
-        for i in 0..<e.column {
-            fmt.print(" ", sep = "", flush = false)
-        }
-        fmt.println("\x1B[32m^\x1B[0m")
-    case Not_Encodable:
-        fmt.printf("%d:%d: ", line_number, e.start_column, flush = false)
-        fmt.print("\x1B[31merror: \x1B[0m", flush = false)
-        fmt.println(e.message, flush = false)
-        fmt.println(line_text, flush = false)
-        for i in 0..<e.start_column {
-            fmt.print(" ", sep = "", flush = false)
-        }
-        fmt.print("\x1B[32m^", flush = false)
-        for i in e.start_column+1..<e.end_column {
-            fmt.print("~", sep = "", flush = false)
-        }
-        fmt.println("\x1B[0m")
-    case Redefinition:
-        fmt.printf("%d: ", line_number, flush = false)
-        fmt.print("\x1B[31merror: \x1B[0m", flush = false)
-        fmt.printfln("redefinition of '%s'", e.label, flush = false)
-    }
-
-    long_string_trail_off :: #force_inline proc(str: string) -> string {
-        if len(str) > 64 {
-            return strings.concatenate([]string{ str[:64], "\x1B[90m...\x1B[0m" })
-        }
-        return strings.clone(str)
-    }
 }
