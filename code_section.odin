@@ -70,7 +70,12 @@ code_from_text :: proc(text: string) -> (code: Code_Section, ok: bool) {
             line_number = 1
             for line_text in strings.split_lines_iterator(&text_ref) {
                 line := Tokenizer{ line = line_text }
-                for token in tokenizer_next(&line) {
+                for {
+                    token, eol, err := tokenizer_next(&line)
+                    assert(err != nil, "unexpected eol")
+                    if eol {
+                        break
+                    }
                     if token == symbol_string {
                         err := Undefined_Symbol{ symbol = symbol_string, column = line.token_start }
                         print_line_error("", line_number, line_text, err)
@@ -126,7 +131,8 @@ process_line :: proc(code: ^Code_Section, line: string) -> (err: Line_Error) {
 
     line := Tokenizer{ line = line }
 
-    if token, ok = optional_token(&line, eol = true); ok {
+    token, ok = optional_token(&line, opt_eol = true) or_return
+    if ok {
         // if token[0] == '.' {
         //     // process_directive(code, &line) or_return
         // }
@@ -138,7 +144,7 @@ process_line :: proc(code: ^Code_Section, line: string) -> (err: Line_Error) {
         return nil
     }
 
-    token, _ = tokenizer_next(&line)
+    token, _ = tokenizer_next(&line) or_return
 
     mnem := mnem_from_token(token)
     #partial switch mnem {
@@ -154,7 +160,7 @@ process_line :: proc(code: ^Code_Section, line: string) -> (err: Line_Error) {
     case .align: process_align(code, &line) or_return
     case: process_instruction(code, &line, mnem)  or_return
     }
-   
+
     return nil
 }
 
@@ -163,7 +169,7 @@ process_local_label :: proc(code: ^Code_Section, line: ^Tokenizer) -> (err: Line
     token: string = ---
     ok: bool = ---
 
-    token, ok = tokenizer_next(line)
+    token, _ = tokenizer_next(line) or_return
 
     if !(unicode.is_alpha(rune(token[0])) || token[0] == '_') {
         return Unexpected_Token{
@@ -201,7 +207,9 @@ process_local_label :: proc(code: ^Code_Section, line: ^Tokenizer) -> (err: Line
 
     _ = expect_token(line, ":") or_return
 
-    if token, ok = tokenizer_next(line); ok {
+    eol: bool = ---
+    token, eol = tokenizer_next(line) or_return
+    if !eol {
         return Unexpected_Token{
             column = line.token_start,
             expected = "'eol'", found = token_str(token)
@@ -230,8 +238,9 @@ process_static_data :: proc(code: ^Code_Section, line: ^Tokenizer, data_type_siz
 
     token: string = ---
     ok: bool = ---
-    
-    if _, ok = optional_token(line, "*"); ok { // auto array size
+
+    _, ok = optional_token(line, "*") or_return
+    if ok { // auto array size
         if depth == 1 {
             return 0, Unexpected_Token{
                 column = line.token_start,
@@ -246,7 +255,7 @@ process_static_data :: proc(code: ^Code_Section, line: ^Tokenizer, data_type_siz
         }
 
         array_length: uint = ---
-        token, _ = tokenizer_next(line)
+        token, _ = tokenizer_next(line) or_return
         mnem := mnem_from_token(token)
         #partial switch mnem {
         case .word: array_length = process_static_data(code, line, SIZE_OF_WORD, depth = 1) or_return
@@ -282,7 +291,7 @@ process_static_data :: proc(code: ^Code_Section, line: ^Tokenizer, data_type_siz
 
     array_length: uint = 0
     for {
-        _, negated := optional_token(line, "-")
+        _, negated := optional_token(line, "-") or_return
         value_start_column := line.token_start
 
         value := expect_integer(line) or_return
@@ -310,7 +319,8 @@ process_static_data :: proc(code: ^Code_Section, line: ^Tokenizer, data_type_siz
 
         array_length += 1
 
-        if token, ok = optional_token(line, ",", eol = true); !ok {
+        token, ok = optional_token(line, ",", opt_eol = true) or_return
+        if !ok {
             return 0, Unexpected_Token{
                 column = line.token_start,
                 expected = "','", found = token_str(token)
@@ -332,13 +342,14 @@ process_ascii :: proc(code: ^Code_Section, line: ^Tokenizer) -> (size: uint, err
         return 0, err
     }
 
-    string_length: uint = 0 
+    string_length: uint = 0
     for column := line.token_end; column < len(line.line); column += 1 {
         ch := line.line[column]
         if ch == '"' {
             column += 1
             line.token_end = column
-            if token, ok := tokenizer_next(line); ok {
+            token, eol := tokenizer_next(line) or_return
+            if !eol {
                 return 0, Unexpected_Token{
                     column = line.token_start,
                     expected = "'eol'", found = token_str(token)
@@ -396,7 +407,8 @@ process_align :: proc(code: ^Code_Section, line: ^Tokenizer) -> (err: Line_Error
         append(&code.buffer, 0)
     }
 
-    if token, ok := tokenizer_next(line); ok {
+    token, eol := tokenizer_next(line) or_return
+    if !eol {
         return Unexpected_Token{
             column = line.token_start,
             expected = "'eol'", found = token_str(token)
@@ -410,7 +422,8 @@ process_align :: proc(code: ^Code_Section, line: ^Tokenizer) -> (err: Line_Error
 process_instruction :: proc(code: ^Code_Section, line: ^Tokenizer, mnem: Mnemonic) -> (err: Line_Error) {
     instr := encode_instruction_from_mnemonic(line, mnem) or_return
 
-    if token, ok := tokenizer_next(line); ok {
+    token, eol := tokenizer_next(line) or_return
+    if !eol {
         return Unexpected_Token{
             column = line.token_start,
             expected = "'eol'", found = token_str(token)

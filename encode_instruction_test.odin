@@ -5,19 +5,18 @@ package auras
 import "core:testing"
 
 @(private = "file")
-produces_unexpected_token_error :: #force_inline proc(str: string) -> bool {
+produces_unexpected_token_error :: proc(str: string) -> bool {
     line := Tokenizer{ line = str }
-    token, ok := tokenizer_next(&line)
-    if !ok {
+    token, eol, err := tokenizer_next(&line)
+    if eol || err != nil {
         return false
     }
     mnem := mnem_from_token(token)
-    _, err := encode_instruction_from_mnemonic(&line, mnem)
+    _, err = encode_instruction_from_mnemonic(&line, mnem)
     if err == nil {
         return false
     }
-    e: Unexpected_Token = ---
-    e, ok = err.(Unexpected_Token)
+    e, ok := err.(Unexpected_Token)
     if ok {
         #partial switch expected in e.expected {
         case [dynamic]string: delete(expected)
@@ -27,30 +26,31 @@ produces_unexpected_token_error :: #force_inline proc(str: string) -> bool {
 }
 
 @(private = "file")
-produces_not_encodable_error :: #force_inline proc(str: string) -> bool {
+produces_not_encodable_error :: proc(str: string) -> bool {
     line := Tokenizer{ line = str }
-    token, ok := tokenizer_next(&line)
-    if !ok {
+    token, eol, err := tokenizer_next(&line)
+    if eol || err != nil {
         return false
     }
     mnem := mnem_from_token(token)
-    _, err := encode_instruction_from_mnemonic(&line, mnem)
+    _, err = encode_instruction_from_mnemonic(&line, mnem)
     if err == nil {
         return false
     }
-    _, ok = err.(Not_Encodable)
+    _, ok := err.(Not_Encodable)
     return ok
 }
 
 @(private = "file")
-machine_word :: #force_inline proc(str: string) -> u32 {
+machine_word :: proc(str: string) -> u32 {
     line := Tokenizer{ line = str }
-    token, ok := tokenizer_next(&line)
-    if !ok {
+    token, eol, err := tokenizer_next(&line)
+    if eol || err != nil {
         return ~u32(0)
     }
     mnem := mnem_from_token(token)
-    instr, err := encode_instruction_from_mnemonic(&line, mnem)
+    instr: Instruction = ---
+    instr, err = encode_instruction_from_mnemonic(&line, mnem)
     if err != nil {
         return ~u32(0)
     }
@@ -58,14 +58,15 @@ machine_word :: #force_inline proc(str: string) -> u32 {
 }
 
 @(private = "file")
-instruction :: #force_inline proc(str: string) -> Instruction {
+instruction :: proc(str: string) -> Instruction {
     line := Tokenizer{ line = str }
-    token, ok := tokenizer_next(&line)
-    if !ok {
+    token, eol, err := tokenizer_next(&line)
+    if eol || err != nil {
         return Instruction{ machine_word = ~u32(0) }
     }
     mnem := mnem_from_token(token)
-    instr, err := encode_instruction_from_mnemonic(&line, mnem)
+    instr: Instruction = ---
+    instr, err = encode_instruction_from_mnemonic(&line, mnem)
     if err != nil {
         return Instruction{ machine_word = ~u32(0) }
     }
@@ -73,10 +74,12 @@ instruction :: #force_inline proc(str: string) -> Instruction {
 }
 
 @(private = "file")
-instruction_and_error :: #force_inline proc(str: string) -> (instr: Instruction, err: Line_Error) {
+instruction_and_error :: proc(str: string) -> (instr: Instruction, err: Line_Error) {
     line := Tokenizer{ line = str }
-    token, ok := tokenizer_next(&line)
-    if !ok {
+    token: string = ---
+    eol: bool = ---
+    token, eol, err = tokenizer_next(&line)
+    if eol || err != nil {
         return Instruction{ machine_word = ~u32(0) }, nil
     }
     mnem := mnem_from_token(token)

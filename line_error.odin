@@ -12,6 +12,7 @@ Line_Error :: union {
     Not_Encodable,
     Redefinition,
     Undefined_Symbol,
+    Unknown_Escape_Sequence,
 }
 
 Unexpected_EOL :: struct {
@@ -36,7 +37,11 @@ Redefinition :: struct {
 }
 
 Undefined_Symbol :: struct {
+    column: uint,
     symbol: string,
+}
+
+Unknown_Escape_Sequence :: struct {
     column: uint,
 }
 
@@ -46,11 +51,12 @@ print_line_error :: proc(file_path: string, line_number: uint, line_text: string
 
     start_column: uint = ---
     switch e in err {
-    case Unexpected_EOL:   start_column = e.column
-    case Unexpected_Token: start_column = e.column
-    case Not_Encodable:    start_column = e.start_column
-    case Redefinition:     start_column = e.column
-    case Undefined_Symbol: start_column = e.column
+    case Unexpected_EOL:          start_column = e.column
+    case Unexpected_Token:        start_column = e.column
+    case Not_Encodable:           start_column = e.start_column
+    case Redefinition:            start_column = e.column
+    case Undefined_Symbol:        start_column = e.column
+    case Unknown_Escape_Sequence: start_column = e.column
     }
 
     fmt.sbprintf(&sb, "%s(%d:%d) " , file_path, line_number, start_column)
@@ -95,6 +101,9 @@ print_line_error :: proc(file_path: string, line_number: uint, line_text: string
     case Undefined_Symbol:
         fmt.sbprintfln(&sb, "'%s' referenced but not defined", e.symbol)
         underline(&sb, line_text, start_column)
+    case Unknown_Escape_Sequence:
+        fmt.sbprintln(&sb, "unknown escape sequence")
+        underline(&sb, line_text, start_column, start_column + 2)
     }
 
     fmt.eprint(strings.to_string(sb))
@@ -122,7 +131,10 @@ operand_str :: #force_inline proc(op: Operand) -> union { string, quoted_string 
     }
 }
 
-token_str :: #force_inline proc(token: string) -> union { string, quoted_string } {
+token_str :: proc(token: string) -> union { string, quoted_string } {
+    if token[0] == '\'' {
+        return string("character literal")
+    }
     op, _ := parse_operand(token)
     if symbol, ok := op.(Symbol); ok {
         return quoted_string(op.(Symbol))

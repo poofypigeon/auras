@@ -13,8 +13,8 @@ Instruction :: struct {
 // Return instruction encoding from string
 encode_machine_word :: proc(line: string) -> (machine_word: u32) {
     line := Tokenizer{ line = line }
-    token, ok := tokenizer_next(&line)
-    if !ok { return 0 }
+    token, eol, err := tokenizer_next(&line)
+    if eol || err != nil { return 0 }
 
     mnem := mnem_from_token(token)
     #partial switch mnem {
@@ -23,8 +23,7 @@ encode_machine_word :: proc(line: string) -> (machine_word: u32) {
         instr, err := encode_instruction_from_mnemonic(&line, mnem)
         if err == nil { return instr.machine_word }
         fmt.println(err)
-        e: Unexpected_Token = ---
-        e, ok = err.(Unexpected_Token)
+        e, ok := err.(Unexpected_Token)
         if ok {
             #partial switch expected in e.expected {
             case [dynamic]string: delete(expected)
@@ -66,7 +65,7 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding, pu
     ok: bool = ---
 
     machine_word := Data_Transfer_Encoding(0x00000000) | flags
-   
+
     machine_word.rd = expect_register(line) or_return
 
     if push_pop {
@@ -77,14 +76,15 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding, pu
     _ = expect_token(line, "[") or_return
 
     machine_word.rm = expect_register(line) or_return
-  
+
     token = expect_token(line, "+", "-", "]") or_return
     switch token[0] {
     case '+':
     case '-':
         machine_word.n = true
     case ']':
-        if token, ok = optional_token(line, "+", "-", eol = true); !ok {
+        token, ok = optional_token(line, "+", "-", opt_eol = true) or_return
+        if !ok {
             return Instruction{}, Unexpected_Token{
                 column = line.token_start,
                 expected = "'+' or '-'", found = token_str(token),
@@ -115,8 +115,10 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding, pu
     }
 
     if !machine_word.p { // ']' not already seen
-        if _, ok = optional_token(line, "]"); ok {
-            if _, ok = optional_token(line, "!"); ok {
+        _, ok = optional_token(line, "]") or_return
+        if ok {
+            _, ok = optional_token(line, "!") or_return
+            if ok {
                 machine_word.w = true;
             }
             if machine_word.i { // Immediate offset
@@ -131,7 +133,8 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding, pu
         }
     }
 
-    if token, ok = optional_token(line, "lsl"); !ok {
+    token, ok = optional_token(line, "lsl") or_return
+    if !ok {
         if !machine_word.p { // ']' not already seen
             return Instruction{}, Unexpected_Token{
                 column = line.token_start,
@@ -174,7 +177,8 @@ encode_data_transfer :: proc(line: ^Tokenizer, flags: Data_Transfer_Encoding, pu
     }
 
     _ = expect_token(line, "]") or_return
-    if _, ok = optional_token(line, "!"); ok {
+    _, ok = optional_token(line, "!") or_return
+    if ok {
         machine_word.w = true
     }
 
@@ -257,7 +261,7 @@ encode_set_clear_psr_bits :: proc(line: ^Tokenizer, flags: Set_Clear_PSR_Bits_En
     ok: bool = ---
 
     machine_word := Set_Clear_PSR_Bits_Encoding(0x20018000) | flags
-    
+
     op := expect_register_or_integer(line) or_return
     #partial switch v in op {
     case Register:
@@ -273,7 +277,7 @@ encode_set_clear_psr_bits :: proc(line: ^Tokenizer, flags: Set_Clear_PSR_Bits_En
         }
         machine_word.operand = u32(v)
     }
-   
+
     return Instruction{ machine_word = u32(machine_word) }, nil
 }
 
@@ -353,14 +357,14 @@ encode_data_processing :: proc(line: ^Tokenizer, flags: Data_Processing_Encoding
         }
 
         _ = expect_token(line, ",") or_return
-    
-        _, negated := optional_token(line, "-")
-        immediate_start_column = line.token_start 
+
+        _, negated := optional_token(line, "-") or_return
+        immediate_start_column = line.token_start
 
         op := expect_register_or_integer(line) or_return
 
         if !negated {
-            immediate_start_column = line.token_start 
+            immediate_start_column = line.token_start
         }
         immediate_end_column = line.token_end
 
@@ -378,7 +382,8 @@ encode_data_processing :: proc(line: ^Tokenizer, flags: Data_Processing_Encoding
             immediate = negated ? ~v  + 1 : v
         }
 
-        if token, ok = optional_token(line, "lsl", "lsr", "asr", eol = true); !ok {
+        token, ok = optional_token(line, "lsl", "lsr", "asr", opt_eol = true) or_return
+        if !ok {
             return Instruction{}, Unexpected_Token{
                 column = line.token_start,
                 expected = "'lsl', 'lsr', or 'asr'", found = token_str(token)
@@ -456,7 +461,7 @@ encode_data_processing :: proc(line: ^Tokenizer, flags: Data_Processing_Encoding
                     message = DATA_PROCESSING_IMMEDIATE_AND_SHIFT_NOT_ENCODABLE_MESSAGE
                 }
             }
-            
+
             immediate = u32(int(v) >> trailing_zeros)
             shift = u32(trailing_zeros)
             return immediate, shift, nil
@@ -510,15 +515,26 @@ encode_software_interrupt :: proc(line: ^Tokenizer) -> (instr: Instruction, err:
 
     machine_word := Software_Interrupt_Encoding(0xE0000000)
 
-    if token, ok = tokenizer_next(line); !ok { // end of line
+    eol: bool = ---
+    token, eol = tokenizer_next(line) or_return
+    if eol { // end of line
         return Instruction{ machine_word = u32(machine_word) }, nil
     }
 
     op: Operand = ---
-    if op, ok = parse_operand(token); !ok {
-        return Instruction{}, Unexpected_Token{
-            column = line.token_start,
-            expected = "integer literal", found = quoted_string(token)
+    if op, err = parse_operand(token); err != nil {
+        #partial switch e in err {
+        case Unexpected_Token:
+            err := e
+            err.column = line.token_start
+            err.expected = "integer literal"
+            err.found = quoted_string(token)
+            return Instruction{}, err
+        case Unknown_Escape_Sequence:
+            err := e
+            err.column += line.token_start
+            return Instruction{}, err
+        case: unreachable()
         }
     }
 
@@ -582,7 +598,9 @@ encode_branch :: proc(line: ^Tokenizer, flags: Branch_Encoding) -> (instr: Instr
 
     machine_word := Branch_Encoding(0x80000000) | flags
 
-    if token, ok = tokenizer_next(line); !ok { // end of line
+    eol: bool = ---
+    token, eol = tokenizer_next(line) or_return
+    if eol { // end of line
         return Instruction{}, Unexpected_Token{
             column = line.token_start,
             expected = "symbol", found = quoted_string(token)
@@ -590,10 +608,19 @@ encode_branch :: proc(line: ^Tokenizer, flags: Branch_Encoding) -> (instr: Instr
     }
 
     op: Operand = ---
-    if op, ok = parse_operand(token); !ok {
-        return Instruction{}, Unexpected_Token{
-            column = line.token_start,
-            expected = "symbol", found = quoted_string(token)
+    if op, err = parse_operand(token); err != nil {
+        #partial switch e in err {
+        case Unexpected_Token:
+            err := e
+            err.column = line.token_start
+            err.expected = "symbol"
+            err.found = quoted_string(token)
+            return Instruction{}, err
+        case Unknown_Escape_Sequence:
+            err := e
+            err.column += line.token_start
+            return Instruction{}, err
+        case: unreachable()
         }
     }
 
@@ -641,7 +668,7 @@ encode_move_immediate :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Lin
 
     _ = expect_token(line, ",") or_return
 
-    _, machine_word.m = optional_token(line, "-")
+    _, machine_word.m = optional_token(line, "-") or_return
     immediate_start_column := line.token_start
 
     imm := expect_integer(line) or_return
@@ -678,7 +705,7 @@ encode_move_immediate :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Lin
             message = MOVE_IMMEDIATE_NOT_ENCODABLE_MESSAGE,
         }
     }
-  
+
     machine_word.immediate = u32(imm)
     return Instruction{ machine_word = u32(machine_word) }, nil
 }
@@ -707,10 +734,12 @@ encode_m32 :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Line_Error) {
 
     _ = expect_token(line, ",") or_return
 
-    _, negated := optional_token(line, "-")
-    immediate_start_column := line.token_start 
+    _, negated := optional_token(line, "-") or_return
+    immediate_start_column := line.token_start
 
-    if token, ok = tokenizer_next(line); !ok { // end of line
+    eol: bool = ---
+    token, eol = tokenizer_next(line) or_return
+    if eol { // end of line
         return Instruction{}, Unexpected_Token{
             column = line.token_start,
             expected = "integer literal or symbol", found = quoted_string(token)
@@ -718,15 +747,24 @@ encode_m32 :: proc(line: ^Tokenizer) -> (instr: Instruction, err: Line_Error) {
     }
 
     if !negated {
-        immediate_start_column = line.token_start 
+        immediate_start_column = line.token_start
     }
     immediate_end_column := line.token_end
 
     op: Operand = ---
-    if op, ok = parse_operand(token); !ok {
-        return Instruction{}, Unexpected_Token{
-            column = line.token_start,
-            expected = "integer literal or symbol", found = quoted_string(token)
+    if op, err = parse_operand(token); err != nil {
+        #partial switch e in err {
+        case Unexpected_Token:
+            err := e
+            err.column = line.token_start
+            err.expected = "integer literal or symbol"
+            err.found = quoted_string(token)
+            return Instruction{}, err
+        case Unknown_Escape_Sequence:
+            err := e
+            err.column += line.token_start
+            return Instruction{}, err
+        case: unreachable()
         }
     }
 
@@ -862,7 +900,7 @@ encode_instruction_from_mnemonic :: proc(line: ^Tokenizer, mnem: Mnemonic) -> (i
     case .swi:  instr = encode_software_interrupt(line) or_return
     // m32 Pseudo-Instruction
     case .m32:  instr = encode_m32(line) or_return
-    case .invalid, .word, .half, .byte, .ascii, .align: panic("mnemonic should be unreachable")
+    case .invalid, .word, .half, .byte, .ascii, .align: unreachable()
     }
 
     return instr, nil
