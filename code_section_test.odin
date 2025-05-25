@@ -304,7 +304,7 @@ test_static_data_single_value :: proc(t: ^testing.T) {
     testing.expect(t, err == nil)
     err = process_line(&file, "    byte -1")
     testing.expect(t, err == nil)
-   
+
     // file.buffer
     expected_buffer_bytes := []u8{ 0xEF, 0xBE, 0xAD, 0xDE, 0xFF, 0xFF, 0xFF, 0xFF, 0xEF, 0xBE, 0xFF, 0xFF, 0xAA, 0xFF }
     testing.expect(t, bytes.compare(file.buffer[:], expected_buffer_bytes) == 0)
@@ -330,7 +330,7 @@ test_static_data_multiple_values :: proc(t: ^testing.T) {
     testing.expect(t, err == nil)
     err = process_line(&file, "    byte 0, 1, 2, 3")
     testing.expect(t, err == nil)
-   
+
     expected_buffer_words := []u32le{ 0, 1, 2, 3 }
     testing.expect(t, bytes.compare(file.buffer[:4*SIZE_OF_WORD], mem.slice_to_bytes(expected_buffer_words)) == 0)
     expected_buffer_halfs := []u16le{ 0, 1, 2, 3 }
@@ -361,7 +361,7 @@ test_static_data_multiple_values_auto_length :: proc(t: ^testing.T) {
     testing.expect(t, err == nil)
     err = process_line(&file, "    byte * byte 0, 1, 2, 3")
     testing.expect(t, err == nil)
-   
+
     expected_buffer_words := []u32le{ 4, 0, 1, 2, 3 }
     testing.expect(t, bytes.compare(file.buffer[:5*SIZE_OF_WORD], mem.slice_to_bytes(expected_buffer_words)) == 0)
     expected_buffer_halfs := []u16le{ 4, 0, 1, 2, 3 }

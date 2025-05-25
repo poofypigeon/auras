@@ -7,14 +7,7 @@ import "core:slice"
 
 text :: `
 label:
-    nop
-    push r0
-    pop r4
-    add r0, r0, r0
-    ascii "hello"
-    align 4
-    m32 r1, label
-label:
+    mvi r0, -'\\\'
 `
 
 main :: proc() {
