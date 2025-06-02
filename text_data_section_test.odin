@@ -409,20 +409,40 @@ test_static_data_ascii_unexpected_eol :: proc(t: ^testing.T) {
     err: Line_Error
     ok: bool
 
-    _, err = process_line(&file, "    ascii \"")
+    _, err = process_line(&file, `    ascii "`)
     _, ok = err.(Unexpected_EOL)
     testing.expect(t, ok)
-    _, err = process_line(&file, "    ascii \"\\")
+    _, err = process_line(&file, `    ascii "\"`)
     _, ok = err.(Unexpected_EOL)
     testing.expect(t, ok)
 }
+
+@(test)
+test_static_data_ascii_unknown_escape_sequence :: proc(t: ^testing.T) {
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
+
+    err: Line_Error
+    ok: bool
+
+    _, err = process_line(&file, `    ascii "\0"`)
+    _, ok = err.(Unknown_Escape_Sequence)
+    testing.expect(t, ok)
+    _, err = process_line(&file, `    ascii "\x"`)
+    _, ok = err.(Unknown_Escape_Sequence)
+    testing.expect(t, ok)
+    _, err = process_line(&file, `    ascii "\$"`)
+    _, ok = err.(Unknown_Escape_Sequence)
+    testing.expect(t, ok)
+}
+
 
 @(test)
 test_static_data_ascii :: proc(t: ^testing.T) {
     file := text_data_section_init()
     defer text_data_section_cleanup(&file)
 
-    _, err := process_line(&file, "    ascii \"\tabc\n\"")
+    _, err := process_line(&file, `    ascii "\tabc\n"`)
     testing.expect(t, err == nil)
 
     expected_buffer_bytes := []u8{ '\t', 'a', 'b', 'c', '\n' }
@@ -434,10 +454,22 @@ test_static_data_ascii_auto_length :: proc(t: ^testing.T) {
     file := text_data_section_init()
     defer text_data_section_cleanup(&file)
 
-    _, err := process_line(&file, "    byte * ascii \"ascii\"")
+    _, err := process_line(&file, `    byte * ascii "ascii"`)
     testing.expect(t, err == nil)
 
     expected_buffer_bytes := []u8{ 5, 'a', 's', 'c', 'i', 'i' }
+    testing.expect(t, bytes.compare(file.buffer[:], mem.slice_to_bytes(expected_buffer_bytes)) == 0)
+}
+
+@(test)
+test_static_data_ascii_auto_length_escape_characters :: proc(t: ^testing.T) {
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
+
+    _, err := process_line(&file, `    byte * ascii "\tabc\n"`)
+    testing.expect(t, err == nil)
+
+    expected_buffer_bytes := []u8{ 5, '\t', 'a', 'b', 'c', '\n' }
     testing.expect(t, bytes.compare(file.buffer[:], mem.slice_to_bytes(expected_buffer_bytes)) == 0)
 }
 
