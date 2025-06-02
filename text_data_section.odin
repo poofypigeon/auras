@@ -96,7 +96,7 @@ process_local_label :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (e
 
     token, _ = tokenizer_next(line) or_return
 
-    if !(unicode.is_alpha(rune(token[0])) || token[0] == '_') {
+    if !is_symbol_char(token[0]) {
         return Unexpected_Token{
             column = line.token_start,
             expected = "label", found = token_str(token)

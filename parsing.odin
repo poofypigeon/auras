@@ -189,7 +189,7 @@ expect_register_or_integer :: proc(line: ^Tokenizer) -> (op: Operand, err: Line_
     return op, nil
 }
 
-expect_identifier :: proc(line: ^Tokenizer, allow_eol: bool = false) -> (identifier: string, err: Line_Error) {
+expect_symbol :: proc(line: ^Tokenizer, allow_eol: bool = false) -> (symbol: string, err: Line_Error) {
     token, eol := tokenizer_next(line) or_return
     if eol {
         if !allow_eol {
@@ -199,7 +199,7 @@ expect_identifier :: proc(line: ^Tokenizer, allow_eol: bool = false) -> (identif
     } else if !is_symbol_char(token[0]) {
         return "", Unexpected_Token{
             column = line.token_start,
-            expected = "identifier", found = token_str(token)
+            expected = "symbol", found = token_str(token)
         }
     }
     return token, nil

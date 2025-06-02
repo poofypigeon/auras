@@ -107,24 +107,24 @@ process_directive :: proc(
 
     switch {
     case token == "export":
-        identifier := expect_identifier(&line) or_return
-        append(&object.exported_symbols, strings.clone(identifier))
+        symbol := expect_symbol(&line) or_return
+        append(&object.exported_symbols, strings.clone(symbol))
     case token == "text":
-        identifier := expect_identifier(&line, allow_eol = true) or_return
+        symbol := expect_symbol(&line, allow_eol = true) or_return
         append(&object.text_sections, text_data_section_init())
         active_section^ = &object.text_sections[len(object.text_sections)-1]
-        append(&(active_section^).string_table, identifier)
+        append(&(active_section^).string_table, symbol)
         append(&(active_section^).string_table, 0)
     case token == "data":
-        identifier := expect_identifier(&line, allow_eol = true) or_return
+        symbol := expect_symbol(&line, allow_eol = true) or_return
         append(&object.data_sections, text_data_section_init())
         active_section^ = &object.data_sections[len(object.data_sections)-1]
-        append(&(active_section^).string_table, identifier)
+        append(&(active_section^).string_table, symbol)
         append(&(active_section^).string_table, 0)
     case token == "bss":
-        identifier := expect_identifier(&line) or_return
+        symbol := expect_symbol(&line) or_return
         size := expect_integer(&line) or_return
-        bss_section := BSS_Section{ size = u32(size), label = strings.clone(identifier) }
+        bss_section := BSS_Section{ size = u32(size), label = strings.clone(symbol) }
         append(&object.bss_sections, bss_section)
         active_section^ = nil
     // case token == "include" && file_path != "":
