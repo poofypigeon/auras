@@ -261,47 +261,37 @@ process_static_data :: proc(section: ^Text_Data_Section, line: ^Tokenizer, data_
 
 @(private = "file")
 process_ascii :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (size: uint, err: Line_Error) {
-    if _, err = expect_token(line, "\"", no_alloc = true); err != nil {
-        err := err.(Unexpected_Token)
-        err.expected = "string literal"
-        return 0, err
+    token, eol := tokenizer_next(line) or_return
+    if eol {
+        return 0, Unexpected_EOL{ column = line.token_start }
+    }
+    if token[0] != '"' {
+        return 0, Unexpected_Token{
+            column = line.token_start,
+            expected = "string literal", found = token_str(token),
+        }
     }
 
-    string_length: uint = 0
-    for column := line.token_end; column < len(line.line); column += 1 {
-        ch := line.line[column]
-        if ch == '"' {
-            column += 1
-            line.token_end = column
-            token, eol := tokenizer_next(line) or_return
-            if !eol {
-                return 0, Unexpected_Token{
-                    column = line.token_start,
-                    expected = "'eol'", found = token_str(token)
-                }
-            }
-            return string_length, nil
-        }
-        if ch == '\\' {
-            column += 1
-            if column == len(line.line) {
-                return 0, Unexpected_EOL{ column = column }
-            }
-            ch = line.line[column]
+    assert(token[len(token)-1] == '"', "missing quote")
+    size = 0
+    for i := 1; i < len(token)-1; i += 1 {
+        ch := token[i]
+        if token[i] == '\\' {
+            ch = token[i+1]
             switch ch {
-                case 'n':
-                    append(&section.buffer, '\n') // TODO add test for string length with newline
-                case 't':
-                    append(&section.buffer, '\t')
+            case '\\': ch = '\\'
+            case '\'': ch = '\''
+            case 'n': ch = '\n'
+            case 't': ch = '\t'
+            case: return 0, Unknown_Escape_Sequence{ column = line.token_start + uint(i) }
             }
-            string_length += 1
-            continue
+            i += 1
         }
         append(&section.buffer, ch)
-        string_length += 1
+        size += 1
     }
 
-    return 0, Unexpected_EOL{ column = len(line.line) }
+    return size, nil
 }
 
 

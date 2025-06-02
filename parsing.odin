@@ -328,14 +328,16 @@ tokenizer_next :: proc(tokenizer: ^Tokenizer) -> (token: string, eol: bool, err:
 
     tokenizer.token_end += 1;
 
-    // Character literals are consumed as one token
-    if tokenizer.line[tokenizer.token_start] == '\'' {
+    // String literals and character literals are consumed as one token
+    if tokenizer.line[tokenizer.token_start] == '"' || tokenizer.line[tokenizer.token_start] == '\'' {
         if tokenizer.token_end == len(tokenizer.line) {
             return "", false, Unexpected_EOL{ column = tokenizer.token_end }
         }
         escaped := false
         for {
-            if tokenizer.line[tokenizer.token_end] == '\'' && !escaped do break
+            if tokenizer.line[tokenizer.token_end] == tokenizer.line[tokenizer.token_start] && !escaped {
+                break
+            }
             if tokenizer.line[tokenizer.token_end] == '\\' && !escaped {
                 escaped = true
             } else {

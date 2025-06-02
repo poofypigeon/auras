@@ -141,6 +141,9 @@ operand_str :: #force_inline proc(op: Operand) -> union { string, quoted_string 
 }
 
 token_str :: proc(token: string) -> union { string, quoted_string } {
+    if token[0] == '"' {
+        return string("string literal")
+    }
     if token[0] == '\'' {
         return string("character literal")
     }
