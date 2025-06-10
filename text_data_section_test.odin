@@ -137,6 +137,18 @@ test_instruction_extraneous_token :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_instruction_alignment :: proc(t: ^testing.T) {
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
+
+    _, err := process_line(&file, "    byte 0x11, 0x22")
+    testing.expect(t, err == nil)
+    _, err = process_line(&file, "    nop")
+    expected_buffer_words := []u32le{ 0x0000_2211, 0x4001_0000 }
+    testing.expect(t, bytes.compare(file.buffer[:], mem.slice_to_bytes(expected_buffer_words)) == 0)
+}
+
+@(test)
 test_general_instruction :: proc(t: ^testing.T) {
     file := text_data_section_init()
     defer text_data_section_cleanup(&file)
@@ -235,7 +247,6 @@ test_multiple_labels_and_relocations :: proc(t: ^testing.T) {
     file := text_data_section_init()
     defer text_data_section_cleanup(&file)
 
-    directive: bool
     err: Line_Error
     _, err = process_line(&file, "L1:")
     testing.expect(t, err == nil)
