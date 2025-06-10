@@ -365,6 +365,15 @@ process_instruction :: proc(section: ^Text_Data_Section, line: ^Tokenizer, mnem:
         append(&section.relocation_table, relocation_entry)
     }
 
+    // Align to word boundary
+    misalignment := len(section.buffer) % SIZE_OF_WORD
+    if misalignment != 0 {
+        alignment_padding := SIZE_OF_WORD - misalignment
+        for _ in 0..<alignment_padding {
+            append(&section.buffer, 0)
+        }
+    }
+
     machine_word_le := u32le(instr.machine_word)
     append(&section.buffer, ..mem.byte_slice(&machine_word_le, size_of(u32le)))
     if machine_word2, ok := instr.machine_word2.(u32); ok {
