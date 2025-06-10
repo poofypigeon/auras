@@ -243,6 +243,43 @@ test_branch_relocation :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_addr_relocation :: proc(t: ^testing.T) {
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
+
+    _, err := process_line(&file, "    addr L1")
+    testing.expect(t, err == nil)
+
+    // file.buffer
+    expected_buffer_word: u32le = 0x0000_0000
+    testing.expect(t, bytes.compare(file.buffer[:], mem.ptr_to_bytes(&expected_buffer_word)) == 0)
+    // file.symbol_table
+    testing.expect_value(t, len(file.symbol_table), 1)
+    testing.expect_value(t, file.symbol_table[0], Symbol_Table_Entry{ offset = max(u32), name_index = 0 })
+    // file.relocation_table
+    testing.expect_value(t, len(file.relocation_table), 1)
+    // file.string_table
+    expected_string_table := []u8{ 'L', '1', 0 }
+    testing.expect(t, bytes.compare(file.string_table[:], expected_string_table) == 0)
+    // file.symbol_map
+    index, ok := file.symbol_map["L1"]
+    testing.expect(t, ok)
+    testing.expect_value(t, index, 0)
+}
+
+@(test)
+test_addr_alignment :: proc(t: ^testing.T) {
+    file := text_data_section_init()
+    defer text_data_section_cleanup(&file)
+
+    _, err := process_line(&file, "    byte 0x11, 0x22")
+    testing.expect(t, err == nil)
+    _, err = process_line(&file, "    addr L1")
+    expected_buffer_words := []u32le{ 0x0000_2211, 0x0000_0000 }
+    testing.expect(t, bytes.compare(file.buffer[:], mem.slice_to_bytes(expected_buffer_words)) == 0)
+}
+
+@(test)
 test_multiple_labels_and_relocations :: proc(t: ^testing.T) {
     file := text_data_section_init()
     defer text_data_section_cleanup(&file)

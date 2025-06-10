@@ -900,7 +900,7 @@ encode_instruction_from_mnemonic :: proc(line: ^Tokenizer, mnem: Mnemonic) -> (i
     case .swi:  instr = encode_software_interrupt(line) or_return
     // m32 Pseudo-Instruction
     case .m32:  instr = encode_m32(line) or_return
-    case .invalid, .word, .half, .byte, .ascii, .align: unreachable()
+    case .invalid, .word, .half, .byte, .ascii, .align, .addr: unreachable()
     }
 
     return instr, nil

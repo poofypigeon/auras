@@ -21,7 +21,7 @@ SIZE_OF_BYTE :: 1
 Mnemonic :: enum c.int32_t {
     invalid,
     // Data arrays
-    word, half, byte, ascii, align,
+    addr, word, half, byte, ascii, align,
     // Instructions
     ld,   ldb,  ldh,  ldsb, ldsh,
     st,   stb,  sth,

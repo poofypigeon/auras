@@ -6,7 +6,7 @@
 enum mnemonic_t {
     invalid,
     // Data arrays
-    word, half, byte, ascii, align,
+    addr, word, half, byte, ascii, align,
     // Instructions
     ld,   ldb,  ldh,  ldsb, ldsh,
     st,   stb,  sth,
@@ -31,6 +31,7 @@ struct mnemonic_token {
     enum mnemonic_t mnemonic;
 };
 %%
+addr,  addr
 word,  word
 half,  half
 byte,  byte

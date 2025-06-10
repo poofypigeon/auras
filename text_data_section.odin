@@ -78,6 +78,7 @@ process_line :: proc(section: ^Text_Data_Section, line: string) -> (directive: b
             column = line.token_start,
             expected = "mnemonic", found = token_str(token)
         }
+    case .addr: process_addr(section, &line) or_return
     case .word: process_static_data(section, &line, SIZE_OF_WORD) or_return
     case .half: process_static_data(section, &line, SIZE_OF_HALF) or_return
     case .byte: process_static_data(section, &line, SIZE_OF_BYTE) or_return
@@ -150,6 +151,24 @@ process_local_label :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (e
 @(private = "file") STATIC_DATA_VALUE_NOT_ENCODABLE_WORD_MESSAGE :: "value is not encodable as type 'word'"
 @(private = "file") STATIC_DATA_VALUE_NOT_ENCODABLE_HALF_MESSAGE :: "value is not encodable as type 'half'"
 @(private = "file") STATIC_DATA_VALUE_NOT_ENCODABLE_BYTE_MESSAGE :: "value is not encodable as type 'byte'"
+
+@(private = "file")
+process_addr :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (err: Line_Error) {
+    relocation_symbol := expect_symbol(line) or_return
+    add_relocation_symbol(section, relocation_symbol)
+
+    // Align to word boundary
+    misalignment := len(section.buffer) % SIZE_OF_WORD
+    if misalignment != 0 {
+        alignment_padding := SIZE_OF_WORD - misalignment
+        for _ in 0..<alignment_padding {
+            append(&section.buffer, 0)
+        }
+    }
+
+    append(&section.buffer, 0, 0, 0, 0)
+    return nil
+}
 
 @(private = "file")
 process_static_data :: proc(section: ^Text_Data_Section, line: ^Tokenizer, data_type_size: uint, depth: uint = 0) -> (size: uint, err: Line_Error) {
@@ -346,23 +365,7 @@ process_instruction :: proc(section: ^Text_Data_Section, line: ^Tokenizer, mnem:
     }
 
     if relocation_symbol, ok := instr.relocation_symbol.(string); ok {
-        symbol_index, ok := section.symbol_map[relocation_symbol]
-        if !ok { // create symbol table entry
-            symbol_index = u32(len(section.symbol_table))
-            section.symbol_map[relocation_symbol] = symbol_index
-            symbol_entry := Symbol_Table_Entry{
-                offset = UNDEFINED_OFFSET, // unknown at this time
-                name_index = u32(len(section.string_table))
-            }
-            append(&section.symbol_table, symbol_entry)
-            append(&section.string_table, relocation_symbol)
-            append(&section.string_table, 0)
-        }
-        relocation_entry := Relocation_Table_Entry{
-            offset = u32(len(section.buffer)),
-            symbol_index = symbol_index
-        }
-        append(&section.relocation_table, relocation_entry)
+        add_relocation_symbol(section, relocation_symbol)
     }
 
     // Align to word boundary
@@ -382,4 +385,25 @@ process_instruction :: proc(section: ^Text_Data_Section, line: ^Tokenizer, mnem:
     }
 
     return nil
+}
+
+@(private = "file")
+add_relocation_symbol :: proc(section: ^Text_Data_Section, relocation_symbol: string) {
+    symbol_index, ok := section.symbol_map[relocation_symbol]
+    if !ok { // create symbol table entry
+        symbol_index = u32(len(section.symbol_table))
+        section.symbol_map[relocation_symbol] = symbol_index
+        symbol_entry := Symbol_Table_Entry{
+            offset = UNDEFINED_OFFSET, // unknown at this time
+            name_index = u32(len(section.string_table))
+        }
+        append(&section.symbol_table, symbol_entry)
+        append(&section.string_table, relocation_symbol)
+        append(&section.string_table, 0)
+    }
+    relocation_entry := Relocation_Table_Entry{
+        offset = u32(len(section.buffer)),
+        symbol_index = symbol_index
+    }
+    append(&section.relocation_table, relocation_entry)
 }
