@@ -12,9 +12,9 @@ BSS_Section :: struct {
 }
 
 Linker_Object :: struct {
+    bss_sections: [dynamic]BSS_Section,
     text_sections: [dynamic]Text_Data_Section,
     data_sections: [dynamic]Text_Data_Section,
-    bss_sections: [dynamic]BSS_Section,
     exported_symbols: [dynamic]string,
 }
 
@@ -70,7 +70,7 @@ process_text :: proc(text: string, file_path: string = "") -> (object: Linker_Ob
     line_number: uint = 0
     for line in strings.split_lines_iterator(&text) {
         directive, err := process_line(active_section, line)
-        assert(!(err != nil && directive), "directive with error")
+        assert(err == nil || !directive, "directive with error")
         if directive {
             err = process_directive(&object, line, directory, &defines, &active_section)
         }
