@@ -10,9 +10,11 @@ import "core:slice"
 @(test)
 test_linker_object_expected_directive :: proc(t: ^testing.T) {
     object := Linker_Object{}
+    object_strings := Object_Strings{}
     active_section: ^Text_Data_Section = nil
+
     line := ".foo"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(&object, line, "", nil, &active_section, &object_strings)
     _, ok := err.(Unexpected_Token)
     testing.expect(t, ok)
 }
@@ -23,44 +25,55 @@ test_linker_object_expected_directive :: proc(t: ^testing.T) {
 
 @(test)
 test_linker_object_export_unexpected_eol :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
+
     line := ".export"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     _, ok := err.(Unexpected_EOL)
     testing.expect(t, ok)
 }
 
 @(test)
 test_linker_object_export_unexpected_token :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
+
     line := ".export!"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     _, ok := err.(Unexpected_Token)
     testing.expect(t, ok)
 }
 
 @(test)
 test_linker_object_export_extra_token :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".export label!"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     _, ok := err.(Unexpected_Token)
     testing.expect(t, ok)
 }
 
 @(test)
-test_linker_object_export :: proc(t: ^testing.T) { object := Linker_Object{}
+test_linker_object_export :: proc(t: ^testing.T) {
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".export label"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     testing.expect(t, err == nil)
-    testing.expect_value(t, len(object.exported_symbols), 1)
-    testing.expect_value(t, object.exported_symbols[0], "label")
+    testing.expect_value(t, object_strings.string_map["label"], 1)
+    testing.expect(t, string(object.string_table[:]) == "\x00\x85label")
 }
 
 
@@ -69,52 +82,61 @@ test_linker_object_export :: proc(t: ^testing.T) { object := Linker_Object{}
 
 @(test)
 test_linker_object_text_unexpected_token :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".text!"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     _, ok := err.(Unexpected_Token)
     testing.expect(t, ok)
 }
 
 @(test)
 test_linker_object_text_extra_token :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".text symbol!"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     _, ok := err.(Unexpected_Token)
     testing.expect(t, ok)
 }
 
 @(test)
 test_linker_object_text :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".text"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     testing.expect(t, err == nil)
     testing.expect_value(t, len(object.text_sections), 1)
     testing.expect(t, active_section != nil)
     testing.expect(t, active_section == &object.text_sections[0])
-    testing.expect_value(t, string(object.text_sections[0].string_table[:]), "\x00")
+    testing.expect_value(t, string(object.string_table[:]), "\x00")
 }
 
 @(test)
 test_linker_object_text_with_symbol :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".text symbol"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     testing.expect(t, err == nil)
     testing.expect_value(t, len(object.text_sections), 1)
     testing.expect(t, active_section != nil)
     testing.expect(t, active_section == &object.text_sections[0])
-    testing.expect_value(t, string(object.text_sections[0].string_table[:]), "symbol\x00")
+    testing.expect_value(t, object_strings.string_map["symbol"], 1)
+    testing.expect_value(t, string(object.string_table[:]), "\x00\x06symbol")
 }
 
 
@@ -123,52 +145,61 @@ test_linker_object_text_with_symbol :: proc(t: ^testing.T) {
 
 @(test)
 test_linker_object_data_unexpected_token :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".data!"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     _, ok := err.(Unexpected_Token)
     testing.expect(t, ok)
 }
 
 @(test)
 test_linker_object_data_extra_token :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".data symbol!"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     _, ok := err.(Unexpected_Token)
     testing.expect(t, ok)
 }
 
 @(test)
 test_linker_object_data :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".data"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     testing.expect(t, err == nil)
     testing.expect_value(t, len(object.data_sections), 1)
     testing.expect(t, active_section != nil)
     testing.expect(t, active_section == &object.data_sections[0])
-    testing.expect_value(t, string(object.data_sections[0].string_table[:]), "\x00")
+    testing.expect_value(t, string(object.string_table[:]), "\x00")
 }
 
 @(test)
 test_linker_object_data_with_symbol :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".data symbol"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     testing.expect(t, err == nil)
     testing.expect_value(t, len(object.data_sections), 1)
     testing.expect(t, active_section != nil)
     testing.expect(t, active_section == &object.data_sections[0])
-    testing.expect_value(t, string(object.data_sections[0].string_table[:]), "symbol\x00")
+    testing.expect_value(t, object_strings.string_map["symbol"], 1)
+    testing.expect_value(t, string(object.string_table[:]), "\x00\x06symbol")
 }
 
 
@@ -177,46 +208,55 @@ test_linker_object_data_with_symbol :: proc(t: ^testing.T) {
 
 @(test)
 test_linker_object_bss_unexpected_token_pos1 :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".bss!"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     _, ok := err.(Unexpected_Token)
     testing.expect(t, ok)
 }
 
 @(test)
 test_linker_object_bss_unexpected_token_pos2 :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".bss label!"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     _, ok := err.(Unexpected_Token)
     testing.expect(t, ok)
 }
 
 @(test)
 test_linker_object_bss_extra_token :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".bss label 256!"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     _, ok := err.(Unexpected_Token)
     testing.expect(t, ok)
 }
 
 @(test)
 test_linker_object_bss :: proc(t: ^testing.T) {
-    object := Linker_Object{}
+    object, object_strings := linker_object_init()
+    defer linker_object_cleanup(object)
+    defer free_all(context.temp_allocator)
     active_section: ^Text_Data_Section = nil
-    defer linker_object_cleanup(&object)
+
     line := ".bss label 256"
-    err := process_directive(&object, line, "", nil, &active_section)
+    err := process_directive(object, line, "", nil, &active_section, &object_strings)
     testing.expect(t, err == nil)
     testing.expect(t, len(object.bss_sections) == 1)
-    testing.expect_value(t, object.bss_sections[0].label, "label")
+    testing.expect_value(t, object.bss_sections[0].name_index, 1)
+    testing.expect_value(t, string(object.string_table[:]), "\x00\x05label")
     testing.expect(t, active_section == nil)
 }

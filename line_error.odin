@@ -14,6 +14,7 @@ Line_Error :: union {
     Undefined_Symbol,
     Unknown_Escape_Sequence,
     Missing_Section_Declaration,
+    Token_Too_Long,
 }
 
 Unexpected_EOL :: struct {
@@ -50,6 +51,10 @@ Missing_Section_Declaration :: struct {
     column: uint,
 }
 
+Token_Too_Long :: struct {
+    column: uint,
+}
+
 print_line_error :: proc(file_path: string, line_number: uint, err: Line_Error, line_text: string) {
     sb := strings.builder_make()
     defer strings.builder_destroy(&sb)
@@ -63,6 +68,7 @@ print_line_error :: proc(file_path: string, line_number: uint, err: Line_Error, 
     case Undefined_Symbol: start_column = e.column
     case Unknown_Escape_Sequence: start_column = e.column
     case Missing_Section_Declaration: start_column = e.column
+    case Token_Too_Long: start_column = e.column
     }
 
     fmt.sbprintf(&sb, "%s(%d:%d) " , file_path, line_number, start_column)
@@ -112,6 +118,9 @@ print_line_error :: proc(file_path: string, line_number: uint, err: Line_Error, 
         underline(&sb, line_text, start_column, start_column + 2)
     case Missing_Section_Declaration:
         fmt.sbprintln(&sb, "expected section declaration")
+        underline(&sb, line_text, start_column)
+    case Token_Too_Long:
+        fmt.sbprintln(&sb, "token exceeds 127 character limit")
         underline(&sb, line_text, start_column)
     }
 

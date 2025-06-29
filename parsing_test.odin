@@ -133,3 +133,20 @@ test_parse_operand_tab_character_literal :: proc(t: ^testing.T) {
     testing.expect(t, ok)
     testing.expect_value(t, v, '\t')
 }
+
+
+
+// Token exceeding 127 characters
+
+
+@(test)
+test_token_too_long :: proc(t: ^testing.T) {
+    label_32_chars :: "abcdefghijklmnopqrstuvwxyz123456"
+    str :: label_32_chars+label_32_chars+label_32_chars+label_32_chars
+
+    line := Tokenizer{ line = str }
+    _, eol, err := tokenizer_next(&line)
+    testing.expect(t, !eol)
+    _, ok := err.(Token_Too_Long)
+    testing.expect(t, ok)
+}

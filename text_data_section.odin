@@ -1,6 +1,5 @@
 package auras
 
-import "core:fmt"
 import "core:math/bits"
 import "core:mem"
 import "core:slice"
@@ -14,38 +13,36 @@ Relocation_Table_Entry :: struct {
 
 Symbol_Table_Entry :: struct {
     offset: u32, // offset from beginning of section
-    name_index:   u32, // index into string table
+    name_index: u32, // index into string table
 }
 
 UNDEFINED_OFFSET :: max(u32)
 
 Text_Data_Section :: struct {
+    name_index: u32, // index into string table
     buffer: [dynamic]u8,
     symbol_table: [dynamic]Symbol_Table_Entry,
     relocation_table: [dynamic]Relocation_Table_Entry,
-    string_table: [dynamic]u8, // first entry is section name
     symbol_map: map[string]u32,
 }
 
 text_data_section_init :: proc() -> Text_Data_Section {
     return Text_Data_Section{
-        buffer           = make([dynamic]u8, 0, 256),
-        string_table     = make([dynamic]u8, 0, 256),
-        symbol_map       = make(map[string]u32),
+        buffer = make([dynamic]u8, 0, 256),
+        symbol_map = make(map[string]u32),
         relocation_table = make([dynamic]Relocation_Table_Entry, 0, 64),
-        symbol_table     = make([dynamic]Symbol_Table_Entry, 0, 64),
+        symbol_table = make([dynamic]Symbol_Table_Entry, 0, 64),
     }
 }
 
 text_data_section_cleanup :: proc(section: ^Text_Data_Section) {
     delete(section.buffer)
-    delete(section.string_table)
     delete(section.symbol_map)
     delete(section.relocation_table)
     delete(section.symbol_table)
 }
 
-process_line :: proc(section: ^Text_Data_Section, line: string) -> (directive: bool, err: Line_Error) {
+process_line :: proc(section: ^Text_Data_Section, line: string, object_strings: ^Object_Strings) -> (directive: bool, err: Line_Error) {
     token: string = ---
     ok: bool = ---
 
@@ -65,7 +62,7 @@ process_line :: proc(section: ^Text_Data_Section, line: string) -> (directive: b
     }
 
     if !unicode.is_space(rune(line.line[0])) {
-        process_local_label(section, &line) or_return
+        process_local_label(section, &line, object_strings) or_return
         return false, nil
     }
 
@@ -78,20 +75,20 @@ process_line :: proc(section: ^Text_Data_Section, line: string) -> (directive: b
             column = line.token_start,
             expected = "mnemonic", found = token_str(token)
         }
-    case .addr: process_addr(section, &line) or_return
+    case .addr: process_addr(section, &line, object_strings) or_return
     case .word: process_static_data(section, &line, SIZE_OF_WORD) or_return
     case .half: process_static_data(section, &line, SIZE_OF_HALF) or_return
     case .byte: process_static_data(section, &line, SIZE_OF_BYTE) or_return
     case .ascii: process_ascii(section, &line) or_return
     case .align: process_align(section, &line) or_return
-    case: process_instruction(section, &line, mnem) or_return
+    case: process_instruction(section, &line, mnem, object_strings) or_return
     }
    
     return false, nil
 }
 
 @(private = "file")
-process_local_label :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (err: Line_Error) {
+process_local_label :: proc(section: ^Text_Data_Section, line: ^Tokenizer, object_strings: ^Object_Strings) -> (err: Line_Error) {
     token: string = ---
     ok: bool = ---
 
@@ -121,14 +118,13 @@ process_local_label :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (e
         }
         section.symbol_table[symbol_index].offset = u32(len(section.buffer))
     } else { // create symbol table entry
+        string_index := get_or_add_string_entry(object_strings, token)
         section.symbol_map[token] = u32(len(section.symbol_table))
         symbol_entry := Symbol_Table_Entry{
             offset = u32(len(section.buffer)),
-            name_index = u32(len(section.string_table))
+            name_index = string_index,
         }
         append(&section.symbol_table, symbol_entry)
-        append(&section.string_table, token)
-        append(&section.string_table, 0)
     }
 
     _ = expect_token(line, ":") or_return
@@ -153,9 +149,9 @@ process_local_label :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (e
 @(private = "file") STATIC_DATA_VALUE_NOT_ENCODABLE_BYTE_MESSAGE :: "value is not encodable as type 'byte'"
 
 @(private = "file")
-process_addr :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (err: Line_Error) {
+process_addr :: proc(section: ^Text_Data_Section, line: ^Tokenizer, object_strings: ^Object_Strings) -> (err: Line_Error) {
     relocation_symbol := expect_symbol(line) or_return
-    add_relocation_symbol(section, relocation_symbol)
+    add_relocation_symbol(section, relocation_symbol, object_strings)
 
     // Align to word boundary
     misalignment := len(section.buffer) % SIZE_OF_WORD
@@ -353,7 +349,7 @@ process_align :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (err: Li
 }
 
 @(private = "file")
-process_instruction :: proc(section: ^Text_Data_Section, line: ^Tokenizer, mnem: Mnemonic) -> (err: Line_Error) {
+process_instruction :: proc(section: ^Text_Data_Section, line: ^Tokenizer, mnem: Mnemonic, object_strings: ^Object_Strings) -> (err: Line_Error) {
     instr := encode_instruction_from_mnemonic(line, mnem) or_return
 
     token, eol := tokenizer_next(line) or_return
@@ -365,7 +361,7 @@ process_instruction :: proc(section: ^Text_Data_Section, line: ^Tokenizer, mnem:
     }
 
     if relocation_symbol, ok := instr.relocation_symbol.(string); ok {
-        add_relocation_symbol(section, relocation_symbol)
+        add_relocation_symbol(section, relocation_symbol, object_strings)
     }
 
     // Align to word boundary
@@ -388,22 +384,36 @@ process_instruction :: proc(section: ^Text_Data_Section, line: ^Tokenizer, mnem:
 }
 
 @(private = "file")
-add_relocation_symbol :: proc(section: ^Text_Data_Section, relocation_symbol: string) {
+add_relocation_symbol :: proc(section: ^Text_Data_Section, relocation_symbol: string, object_strings: ^Object_Strings) {
     symbol_index, ok := section.symbol_map[relocation_symbol]
     if !ok { // create symbol table entry
         symbol_index = u32(len(section.symbol_table))
+        string_index := get_or_add_string_entry(object_strings, relocation_symbol)
         section.symbol_map[relocation_symbol] = symbol_index
         symbol_entry := Symbol_Table_Entry{
             offset = UNDEFINED_OFFSET, // unknown at this time
-            name_index = u32(len(section.string_table))
+            name_index = string_index
         }
         append(&section.symbol_table, symbol_entry)
-        append(&section.string_table, relocation_symbol)
-        append(&section.string_table, 0)
     }
     relocation_entry := Relocation_Table_Entry{
         offset = u32(len(section.buffer)),
         symbol_index = symbol_index
     }
     append(&section.relocation_table, relocation_entry)
+}
+
+get_or_add_string_entry :: proc(object_strings: ^Object_Strings, s: string) -> u32 {
+    string_index: u32 = ---
+    ok: bool = ---
+    if s == "" {
+        return 0
+    }
+    if string_index, ok = object_strings.string_map[s]; !ok {
+        string_index = u32(len(object_strings.string_table))
+        append(object_strings.string_table, u8(len(s)))
+        append(object_strings.string_table, s)
+        object_strings.string_map[s] = string_index
+    }
+    return string_index
 }

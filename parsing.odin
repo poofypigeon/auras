@@ -362,6 +362,9 @@ tokenizer_next :: proc(tokenizer: ^Tokenizer) -> (token: string, eol: bool, err:
         if !(is_symbol_char(line[tokenizer.token_end]) || unicode.is_number(rune(line[tokenizer.token_end]))) do break
         tokenizer.token_end += 1
     }
+    if tokenizer.token_end - tokenizer.token_start >= 1<<7 {
+        return "", false, Token_Too_Long{ column = tokenizer.token_start }
+    }
     return line[tokenizer.token_start:tokenizer.token_end], false, nil
 }
 

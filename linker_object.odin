@@ -7,18 +7,38 @@ import "core:path/filepath"
 import "core:strings"
 
 BSS_Section :: struct {
+    name_index: u32, // index into string table
     size: u32,
-    label: string,
 }
 
 Linker_Object :: struct {
     bss_sections: [dynamic]BSS_Section,
     text_sections: [dynamic]Text_Data_Section,
     data_sections: [dynamic]Text_Data_Section,
-    exported_symbols: [dynamic]string,
+    string_table: [dynamic]u8,
+}
+
+Object_Strings :: struct {
+    string_table: ^[dynamic]u8,
+    string_map: map[string]u32,
+}
+
+linker_object_init :: proc() -> (object: ^Linker_Object, object_strings: Object_Strings) {
+    object = new(Linker_Object)
+    object.bss_sections = make([dynamic]BSS_Section, 0)
+    object.text_sections = make([dynamic]Text_Data_Section, 0)
+    object.data_sections = make([dynamic]Text_Data_Section, 0)
+    object.string_table = make([dynamic]u8, 1, 64) // index 0 is empty string
+    object_strings = Object_Strings{
+        string_table = &object.string_table,
+        string_map = make(map[string]u32, context.temp_allocator),
+    }
+    object_strings.string_map[""] = 0;
+    return
 }
 
 linker_object_cleanup :: proc(object: ^Linker_Object) {
+    delete(object.bss_sections)
     for &section in object.text_sections {
         text_data_section_cleanup(&section)
     }
@@ -28,19 +48,11 @@ linker_object_cleanup :: proc(object: ^Linker_Object) {
         text_data_section_cleanup(&section)
     }
     delete(object.data_sections)
-
-    for &section in object.bss_sections {
-        delete(section.label)
-    }
-    delete(object.bss_sections)
-
-    for &symbol in object.exported_symbols {
-        delete(symbol)
-    }
-    delete(object.exported_symbols)
+    delete(object.string_table)
+    free(object)
 }
 
-process_file :: proc(file_path: string) -> (object: Linker_Object, ok: bool) {
+process_file :: proc(file_path: string) -> (object: ^Linker_Object, ok: bool) {
     handle, e := os.open(file_path)
     if e != nil {
         os.print_error(os.stderr, e, "error")
@@ -58,25 +70,26 @@ process_file :: proc(file_path: string) -> (object: Linker_Object, ok: bool) {
     return process_text(string(text), file_path)
 }
 
-process_text :: proc(text: string, file_path: string = "") -> (object: Linker_Object, ok: bool) {
+process_text :: proc(text: string, file_path: string = "") -> (object: ^Linker_Object, ok: bool) {
     text := text
     directory := filepath.dir(file_path, allocator = context.temp_allocator)
 
-    object = Linker_Object{}
-    active_section: ^Text_Data_Section = nil
+    object_strings: Object_Strings = ---
+    object, object_strings = linker_object_init()
     defines := make(map[string]uint, context.temp_allocator)
     defer free_all(context.temp_allocator)
+    active_section: ^Text_Data_Section = nil
 
     line_number: uint = 0
     for line in strings.split_lines_iterator(&text) {
-        directive, err := process_line(active_section, line)
+        directive, err := process_line(active_section, line, &object_strings)
         assert(err == nil || !directive, "directive with error")
         if directive {
-            err = process_directive(&object, line, directory, &defines, &active_section)
+            err = process_directive(object, line, directory, &defines, &active_section, &object_strings)
         }
         if err != nil {
             print_line_error(file_path, line_number, err, line)
-            return Linker_Object{}, false
+            return nil, false
         }
         line_number += 1
     }
@@ -90,6 +103,7 @@ process_directive :: proc(
     directory_path: string,
     defines: ^map[string]uint,
     active_section: ^^Text_Data_Section,
+    object_strings: ^Object_Strings,
 ) -> (err: Line_Error) {
     assert(active_section != nil, "nil double pointer to active section")
     token: string = ---
@@ -102,29 +116,31 @@ process_directive :: proc(
 
     token, eol = tokenizer_next(&line) or_return
     if eol {
-        return Unexpected_EOL{ column = line.token_start, }
+        return Unexpected_EOL{ column = line.token_start }
     }
 
     switch {
     case token == "export":
         symbol := expect_symbol(&line) or_return
-        append(&object.exported_symbols, strings.clone(symbol))
+        string_index := get_or_add_string_entry(object_strings, symbol)
+        object_strings.string_table[string_index] |= 0x80 // set export bit
     case token == "text":
         symbol := expect_symbol(&line, allow_eol = true) or_return
         append(&object.text_sections, text_data_section_init())
         active_section^ = &object.text_sections[len(object.text_sections)-1]
-        append(&(active_section^).string_table, symbol)
-        append(&(active_section^).string_table, 0)
+        active_section^.name_index = get_or_add_string_entry(object_strings, symbol)
     case token == "data":
         symbol := expect_symbol(&line, allow_eol = true) or_return
         append(&object.data_sections, text_data_section_init())
         active_section^ = &object.data_sections[len(object.data_sections)-1]
-        append(&(active_section^).string_table, symbol)
-        append(&(active_section^).string_table, 0)
+        active_section^.name_index = get_or_add_string_entry(object_strings, symbol)
     case token == "bss":
         symbol := expect_symbol(&line) or_return
         size := expect_integer(&line) or_return
-        bss_section := BSS_Section{ size = u32(size), label = strings.clone(symbol) }
+        bss_section := BSS_Section{
+            name_index = get_or_add_string_entry(object_strings, symbol),
+            size = u32(size)
+        }
         append(&object.bss_sections, bss_section)
         active_section^ = nil
     // case token == "include" && file_path != "":
