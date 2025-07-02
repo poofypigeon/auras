@@ -13,8 +13,7 @@ BSS_Section :: struct {
 
 Linker_Object :: struct {
     bss_sections: [dynamic]BSS_Section,
-    text_sections: [dynamic]Text_Data_Section,
-    data_sections: [dynamic]Text_Data_Section,
+    code_sections: [dynamic]Code_Section,
     string_table: [dynamic]u8,
 }
 
@@ -26,28 +25,21 @@ Object_Strings :: struct {
 linker_object_init :: proc() -> (object: ^Linker_Object, object_strings: Object_Strings) {
     object = new(Linker_Object)
     object.bss_sections = make([dynamic]BSS_Section, 0)
-    object.text_sections = make([dynamic]Text_Data_Section, 0)
-    object.data_sections = make([dynamic]Text_Data_Section, 0)
+    object.code_sections = make([dynamic]Code_Section, 0)
     object.string_table = make([dynamic]u8, 1, 64) // index 0 is empty string
     object_strings = Object_Strings{
         string_table = &object.string_table,
         string_map = make(map[string]u32, context.temp_allocator),
     }
-    object_strings.string_map[""] = 0;
     return
 }
 
 linker_object_cleanup :: proc(object: ^Linker_Object) {
     delete(object.bss_sections)
-    for &section in object.text_sections {
-        text_data_section_cleanup(&section)
+    for &section in object.code_sections {
+        code_section_cleanup(&section)
     }
-    delete(object.text_sections)
-
-    for &section in object.data_sections {
-        text_data_section_cleanup(&section)
-    }
-    delete(object.data_sections)
+    delete(object.code_sections)
     delete(object.string_table)
     free(object)
 }
@@ -78,7 +70,7 @@ process_text :: proc(text: string, file_path: string = "") -> (object: ^Linker_O
     object, object_strings = linker_object_init()
     defines := make(map[string]uint, context.temp_allocator)
     defer free_all(context.temp_allocator)
-    active_section: ^Text_Data_Section = nil
+    active_section: ^Code_Section = nil
 
     line_number: uint = 0
     for line in strings.split_lines_iterator(&text) {
@@ -102,7 +94,7 @@ process_directive :: proc(
     line: string,
     directory_path: string,
     defines: ^map[string]uint,
-    active_section: ^^Text_Data_Section,
+    active_section: ^^Code_Section,
     object_strings: ^Object_Strings,
 ) -> (err: Line_Error) {
     assert(active_section != nil, "nil double pointer to active section")
@@ -126,13 +118,18 @@ process_directive :: proc(
         object_strings.string_table[string_index] |= 0x80 // set export bit
     case token == "text":
         symbol := expect_symbol(&line, allow_eol = true) or_return
-        append(&object.text_sections, text_data_section_init())
-        active_section^ = &object.text_sections[len(object.text_sections)-1]
+        append(&object.code_sections, code_section_init(Section_Type.TEXT))
+        active_section^ = &object.code_sections[len(object.code_sections)-1]
         active_section^.name_index = get_or_add_string_entry(object_strings, symbol)
     case token == "data":
         symbol := expect_symbol(&line, allow_eol = true) or_return
-        append(&object.data_sections, text_data_section_init())
-        active_section^ = &object.data_sections[len(object.data_sections)-1]
+        append(&object.code_sections, code_section_init(Section_Type.DATA))
+        active_section^ = &object.code_sections[len(object.code_sections)-1]
+        active_section^.name_index = get_or_add_string_entry(object_strings, symbol)
+    case token == "rodata":
+        symbol := expect_symbol(&line, allow_eol = true) or_return
+        append(&object.code_sections, code_section_init(Section_Type.RODATA))
+        active_section^ = &object.code_sections[len(object.code_sections)-1]
         active_section^.name_index = get_or_add_string_entry(object_strings, symbol)
     case token == "bss":
         symbol := expect_symbol(&line) or_return

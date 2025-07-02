@@ -18,7 +18,14 @@ Symbol_Table_Entry :: struct {
 
 UNDEFINED_OFFSET :: max(u32)
 
-Text_Data_Section :: struct {
+Section_Type :: enum u32 {
+    TEXT,
+    DATA,
+    RODATA,
+}
+
+Code_Section :: struct {
+    type: Section_Type,
     name_index: u32, // index into string table
     buffer: [dynamic]u8,
     symbol_table: [dynamic]Symbol_Table_Entry,
@@ -26,8 +33,9 @@ Text_Data_Section :: struct {
     symbol_map: map[string]u32,
 }
 
-text_data_section_init :: proc() -> Text_Data_Section {
-    return Text_Data_Section{
+code_section_init :: proc(type: Section_Type) -> Code_Section {
+    return Code_Section{
+        type = type,
         buffer = make([dynamic]u8, 0, 256),
         symbol_map = make(map[string]u32),
         relocation_table = make([dynamic]Relocation_Table_Entry, 0, 64),
@@ -35,14 +43,14 @@ text_data_section_init :: proc() -> Text_Data_Section {
     }
 }
 
-text_data_section_cleanup :: proc(section: ^Text_Data_Section) {
+code_section_cleanup :: proc(section: ^Code_Section) {
     delete(section.buffer)
     delete(section.symbol_map)
     delete(section.relocation_table)
     delete(section.symbol_table)
 }
 
-process_line :: proc(section: ^Text_Data_Section, line: string, object_strings: ^Object_Strings) -> (directive: bool, err: Line_Error) {
+process_line :: proc(section: ^Code_Section, line: string, object_strings: ^Object_Strings) -> (directive: bool, err: Line_Error) {
     token: string = ---
     ok: bool = ---
 
@@ -88,7 +96,7 @@ process_line :: proc(section: ^Text_Data_Section, line: string, object_strings: 
 }
 
 @(private = "file")
-process_local_label :: proc(section: ^Text_Data_Section, line: ^Tokenizer, object_strings: ^Object_Strings) -> (err: Line_Error) {
+process_local_label :: proc(section: ^Code_Section, line: ^Tokenizer, object_strings: ^Object_Strings) -> (err: Line_Error) {
     token: string = ---
     ok: bool = ---
 
@@ -149,7 +157,7 @@ process_local_label :: proc(section: ^Text_Data_Section, line: ^Tokenizer, objec
 @(private = "file") STATIC_DATA_VALUE_NOT_ENCODABLE_BYTE_MESSAGE :: "value is not encodable as type 'byte'"
 
 @(private = "file")
-process_addr :: proc(section: ^Text_Data_Section, line: ^Tokenizer, object_strings: ^Object_Strings) -> (err: Line_Error) {
+process_addr :: proc(section: ^Code_Section, line: ^Tokenizer, object_strings: ^Object_Strings) -> (err: Line_Error) {
     relocation_symbol := expect_symbol(line) or_return
     add_relocation_symbol(section, relocation_symbol, object_strings)
 
@@ -167,7 +175,7 @@ process_addr :: proc(section: ^Text_Data_Section, line: ^Tokenizer, object_strin
 }
 
 @(private = "file")
-process_static_data :: proc(section: ^Text_Data_Section, line: ^Tokenizer, data_type_size: uint, depth: uint = 0) -> (size: uint, err: Line_Error) {
+process_static_data :: proc(section: ^Code_Section, line: ^Tokenizer, data_type_size: uint, depth: uint = 0) -> (size: uint, err: Line_Error) {
     assert(size_of(uint) >= 4)
     assert(data_type_size == SIZE_OF_WORD || data_type_size == SIZE_OF_HALF || data_type_size == SIZE_OF_BYTE)
     assert(depth <= 1)
@@ -275,7 +283,7 @@ process_static_data :: proc(section: ^Text_Data_Section, line: ^Tokenizer, data_
 }
 
 @(private = "file")
-process_ascii :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (size: uint, err: Line_Error) {
+process_ascii :: proc(section: ^Code_Section, line: ^Tokenizer) -> (size: uint, err: Line_Error) {
     token, eol := tokenizer_next(line) or_return
     if eol {
         return 0, Unexpected_EOL{ column = line.token_start }
@@ -309,12 +317,11 @@ process_ascii :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (size: u
     return size, nil
 }
 
-
 @(private = "file") ALIGN_LESS_THAN_FOUR_MESSAGE :: "alignment value must be four or greater"
 @(private = "file") ALIGN_NON_POWER_OF_TWO_MESSAGE :: "alignment value must be a power of two"
 
 @(private = "file")
-process_align :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (err: Line_Error) {
+process_align :: proc(section: ^Code_Section, line: ^Tokenizer) -> (err: Line_Error) {
     alignment := expect_integer(line) or_return
 
     if alignment < SIZE_OF_WORD {
@@ -349,7 +356,7 @@ process_align :: proc(section: ^Text_Data_Section, line: ^Tokenizer) -> (err: Li
 }
 
 @(private = "file")
-process_instruction :: proc(section: ^Text_Data_Section, line: ^Tokenizer, mnem: Mnemonic, object_strings: ^Object_Strings) -> (err: Line_Error) {
+process_instruction :: proc(section: ^Code_Section, line: ^Tokenizer, mnem: Mnemonic, object_strings: ^Object_Strings) -> (err: Line_Error) {
     instr := encode_instruction_from_mnemonic(line, mnem) or_return
 
     token, eol := tokenizer_next(line) or_return
@@ -384,7 +391,7 @@ process_instruction :: proc(section: ^Text_Data_Section, line: ^Tokenizer, mnem:
 }
 
 @(private = "file")
-add_relocation_symbol :: proc(section: ^Text_Data_Section, relocation_symbol: string, object_strings: ^Object_Strings) {
+add_relocation_symbol :: proc(section: ^Code_Section, relocation_symbol: string, object_strings: ^Object_Strings) {
     symbol_index, ok := section.symbol_map[relocation_symbol]
     if !ok { // create symbol table entry
         symbol_index = u32(len(section.symbol_table))

@@ -7,7 +7,7 @@ import "core:mem"
 import "core:testing"
 
 @(private = "file")
-produces_unexpected_token_error :: #force_inline proc(section: ^Text_Data_Section, str: string, object_strings: ^Object_Strings) -> bool {
+produces_unexpected_token_error :: #force_inline proc(section: ^Code_Section, str: string, object_strings: ^Object_Strings) -> bool {
     directive, err := process_line(section, str, object_strings)
     if directive do return false
     e, ok := err.(Unexpected_Token)
@@ -31,8 +31,8 @@ test_missing_section_declaration :: proc(t: ^testing.T) {
 
 @(test)
 test_empty_line :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     directive, err := process_line(&section, "", &object_strings)
@@ -51,8 +51,8 @@ test_empty_line :: proc(t: ^testing.T) {
 
 @(test)
 test_local_label_non_label_character :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     string_table := make([dynamic]u8, 1, 64, context.temp_allocator) // index 0 is empty string
     object_strings := Object_Strings{ string_table = &string_table, string_map = make(map[string]u32, context.temp_allocator) }
     defer free_all(context.temp_allocator)
@@ -62,8 +62,8 @@ test_local_label_non_label_character :: proc(t: ^testing.T) {
 
 @(test)
 test_local_label_missing_colon :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     string_table := make([dynamic]u8, 1, 64, context.temp_allocator) // index 0 is empty string
     object_strings := Object_Strings{ string_table = &string_table, string_map = make(map[string]u32, context.temp_allocator) }
     defer free_all(context.temp_allocator)
@@ -73,8 +73,8 @@ test_local_label_missing_colon :: proc(t: ^testing.T) {
 
 @(test)
 test_local_label_unexpected_token :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     string_table := make([dynamic]u8, 1, 64, context.temp_allocator) // index 0 is empty string
     object_strings := Object_Strings{ string_table = &string_table, string_map = make(map[string]u32, context.temp_allocator) }
     defer free_all(context.temp_allocator)
@@ -84,8 +84,8 @@ test_local_label_unexpected_token :: proc(t: ^testing.T) {
 
 @(test)
 test_local_label :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     string_table := make([dynamic]u8, 1, 64, context.temp_allocator) // index 0 is empty string
     object_strings := Object_Strings{ string_table = &string_table, string_map = make(map[string]u32, context.temp_allocator) }
     defer free_all(context.temp_allocator)
@@ -115,8 +115,8 @@ test_local_label :: proc(t: ^testing.T) {
 
 @(test)
 test_local_label_redefinition :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     string_table := make([dynamic]u8, 1, 64, context.temp_allocator) // index 0 is empty string
     object_strings := Object_Strings{ string_table = &string_table, string_map = make(map[string]u32, context.temp_allocator) }
     defer free_all(context.temp_allocator)
@@ -130,8 +130,8 @@ test_local_label_redefinition :: proc(t: ^testing.T) {
 
 @(test)
 test_invalid_mnemonic :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     testing.expect(t, produces_unexpected_token_error(&section, "    bad", &object_strings))
@@ -139,29 +139,29 @@ test_invalid_mnemonic :: proc(t: ^testing.T) {
 
 @(test)
 test_instruction_extraneous_token :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    b label!", &object_strings))
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    nop!", &object_strings))
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    add r1, r2, r3 lsl r4!", &object_strings))
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    add r1, r2, r3 lsl 4!", &object_strings))
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    lsl r1, r2, r3!", &object_strings))
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    b r1!", &object_strings))
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    mov r1, r2!", &object_strings))
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    smv r1!", &object_strings))
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    m32 r1, 0!", &object_strings))
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    swi 0xAA!", &object_strings))
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    mvi r1, 0!", &object_strings))
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    scl r1!", &object_strings))
-    testing.expect(t, produces_unexpected_token_error(&Text_Data_Section{}, "    sst r1!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    b label!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    nop!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    add r1, r2, r3 lsl r4!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    add r1, r2, r3 lsl 4!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    lsl r1, r2, r3!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    b r1!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    mov r1, r2!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    smv r1!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    m32 r1, 0!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    swi 0xAA!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    mvi r1, 0!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    scl r1!", &object_strings))
+    testing.expect(t, produces_unexpected_token_error(&Code_Section{}, "    sst r1!", &object_strings))
 }
 
 @(test)
 test_instruction_alignment :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     _, err := process_line(&section, "    byte 0x11, 0x22", &object_strings)
@@ -173,8 +173,8 @@ test_instruction_alignment :: proc(t: ^testing.T) {
 
 @(test)
 test_general_instruction :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     directive, err := process_line(&section, "    mvi r1, 0xAA", &object_strings)
@@ -194,8 +194,8 @@ test_general_instruction :: proc(t: ^testing.T) {
 
 @(test)
 test_m32_integer_literal :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     _, err := process_line(&section, "    m32 r1, 0xDEAD_BEEF", &object_strings)
@@ -214,8 +214,8 @@ test_m32_integer_literal :: proc(t: ^testing.T) {
 
 @(test)
 test_m32_relocation :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     string_table := make([dynamic]u8, 1, 64, context.temp_allocator) // index 0 is empty string
     object_strings := Object_Strings{ string_table = &string_table, string_map = make(map[string]u32, context.temp_allocator) }
     defer free_all(context.temp_allocator)
@@ -246,8 +246,8 @@ test_m32_relocation :: proc(t: ^testing.T) {
 
 @(test)
 test_branch_relocation :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     string_table := make([dynamic]u8, 1, 64, context.temp_allocator) // index 0 is empty string
     object_strings := Object_Strings{ string_table = &string_table, string_map = make(map[string]u32, context.temp_allocator) }
     defer free_all(context.temp_allocator)
@@ -277,8 +277,8 @@ test_branch_relocation :: proc(t: ^testing.T) {
 
 @(test)
 test_addr_relocation :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     string_table := make([dynamic]u8, 1, 64, context.temp_allocator) // index 0 is empty string
     object_strings := Object_Strings{ string_table = &string_table, string_map = make(map[string]u32, context.temp_allocator) }
     defer free_all(context.temp_allocator)
@@ -308,8 +308,8 @@ test_addr_relocation :: proc(t: ^testing.T) {
 
 @(test)
 test_addr_alignment :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     string_table := make([dynamic]u8, 1, 64, context.temp_allocator) // index 0 is empty string
     object_strings := Object_Strings{ string_table = &string_table, string_map = make(map[string]u32, context.temp_allocator) }
     defer free_all(context.temp_allocator)
@@ -323,8 +323,8 @@ test_addr_alignment :: proc(t: ^testing.T) {
 
 @(test)
 test_multiple_labels_and_relocations :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     string_table := make([dynamic]u8, 1, 64, context.temp_allocator) // index 0 is empty string
     object_strings := Object_Strings{ string_table = &string_table, string_map = make(map[string]u32, context.temp_allocator) }
     defer free_all(context.temp_allocator)
@@ -370,8 +370,8 @@ test_multiple_labels_and_relocations :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_out_of_range :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     err: Line_Error
@@ -400,8 +400,8 @@ test_static_data_out_of_range :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_unexpected_token :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     testing.expect(t, produces_unexpected_token_error(&section, "    word!", &object_strings))
@@ -410,8 +410,8 @@ test_static_data_unexpected_token :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_single_value :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     err: Line_Error
@@ -441,8 +441,8 @@ test_static_data_single_value :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_multiple_values :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     err: Line_Error
@@ -463,8 +463,8 @@ test_static_data_multiple_values :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_auto_length_unexpected_token :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     testing.expect(t, produces_unexpected_token_error(&section, "    word *!", &object_strings))
@@ -474,8 +474,8 @@ test_static_data_auto_length_unexpected_token :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_multiple_values_auto_length :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     err: Line_Error
@@ -496,8 +496,8 @@ test_static_data_multiple_values_auto_length :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_ascii_unexpected_token :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     _, err := process_line(&section, "    ascii!", &object_strings)
@@ -507,8 +507,8 @@ test_static_data_ascii_unexpected_token :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_ascii_unexpected_eol :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     err: Line_Error
@@ -524,8 +524,8 @@ test_static_data_ascii_unexpected_eol :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_ascii_unknown_escape_sequence :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     err: Line_Error
@@ -544,8 +544,8 @@ test_static_data_ascii_unknown_escape_sequence :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_ascii :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     _, err := process_line(&section, `    ascii "\tabc\n"`, &object_strings)
@@ -557,8 +557,8 @@ test_static_data_ascii :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_ascii_auto_length :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     _, err := process_line(&section, `    byte * ascii "ascii"`, &object_strings)
@@ -570,8 +570,8 @@ test_static_data_ascii_auto_length :: proc(t: ^testing.T) {
 
 @(test)
 test_static_data_ascii_auto_length_escape_characters :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     _, err := process_line(&section, `    byte * ascii "\tabc\n"`, &object_strings)
@@ -583,8 +583,8 @@ test_static_data_ascii_auto_length_escape_characters :: proc(t: ^testing.T) {
 
 @(test)
 test_align_non_power_of_two :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     err: Line_Error
@@ -600,8 +600,8 @@ test_align_non_power_of_two :: proc(t: ^testing.T) {
 
 @(test)
 test_align :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     object_strings := Object_Strings{}
 
     err: Line_Error
@@ -622,8 +622,8 @@ test_align :: proc(t: ^testing.T) {
 
 @(test)
 test_label_alignment :: proc(t: ^testing.T) {
-    section := text_data_section_init()
-    defer text_data_section_cleanup(&section)
+    section := code_section_init(Section_Type.TEXT)
+    defer code_section_cleanup(&section)
     string_table := make([dynamic]u8, 1, 64, context.temp_allocator) // index 0 is empty string
     object_strings := Object_Strings{ string_table = &string_table, string_map = make(map[string]u32, context.temp_allocator) }
     defer free_all(context.temp_allocator)
