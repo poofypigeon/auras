@@ -74,10 +74,7 @@ expect_register :: proc(line: ^Tokenizer) -> (register: u32, err: Line_Error) {
     eol: bool = ---
     token, eol = tokenizer_next(line) or_return
     if eol {
-        return 0, Unexpected_Token{
-            column = line.token_start,
-            expected = "register", found = quoted_string(token),
-        }
+        return 0, Unexpected_Token{ column = line.token_start, expected = "register", found = quoted_string(token) }
     }
 
     op: Operand = ---
@@ -86,7 +83,7 @@ expect_register :: proc(line: ^Tokenizer) -> (register: u32, err: Line_Error) {
         case Unexpected_Token:
             err := e
             err.column = line.token_start
-            err.expected = "register or integer literal"
+            err.expected = "register"
             err.found = quoted_string(token)
             return 0, err
         case Unknown_Escape_Sequence:
@@ -124,10 +121,11 @@ expect_integer :: proc(line: ^Tokenizer) -> (value: uint, err: Line_Error) {
     op: Operand = ---
     if op, err = parse_operand(token); err != nil {
         #partial switch e in err {
+        
         case Unexpected_Token:
             err := e
             err.column = line.token_start
-            err.expected = "register or integer literal"
+            err.expected = "integer literal"
             err.found = quoted_string(token)
             return 0, err
         case Unknown_Escape_Sequence:

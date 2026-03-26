@@ -25,7 +25,6 @@ produces_unknown_escape_sequence_error :: proc(str: string) -> bool {
 
 // --- Tokenizer character literals
 
-
 @(test)
 test_tokenizer_character_literal_unexpected_eol :: proc(t: ^testing.T) {
     testing.expect(t, produces_unexpected_eol_error("' foo"))

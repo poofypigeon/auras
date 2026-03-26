@@ -1,2 +1,5 @@
-auras
-perfect_hash.a
+compile_flags.txt
+c/bin/*
+!c/bin/.gitkeep
+c/build/*
+!c/build/.gitkeep
