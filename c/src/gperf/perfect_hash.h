@@ -13,6 +13,8 @@ typedef enum {
     MN_LW, MN_LB, MN_LH, MN_LBU, MN_LHU, MN_SW, MN_SB, MN_SH,
     // I-TYPE
     MN_MVI,
+    // S-TYPE
+    MN_LSR, MN_SSR, MN_SYSCALL,
 } Mnemonic;
 
 Mnemonic parse_mnemonic(StringSlice token);

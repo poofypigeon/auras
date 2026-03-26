@@ -55,7 +55,40 @@ void mvi() {
     show_instruction_or_error("    mvi t0, 0xffff_ffff_fffff * foo");
 }
 
+void lsr() {
+    fprintf(stderr, "================================================================\n");
+    fprintf(stderr, " S-Type: (LSR)\n");
+    fprintf(stderr, "================================================================\n");
+    show_instruction_or_error("    lsr");
+    show_instruction_or_error("    lsr t0, 63");
+    show_instruction_or_error("    lsr t0, -1");
+    show_instruction_or_error("    lsr t0, 64");
+}
+
+void ssr() {
+    fprintf(stderr, "================================================================\n");
+    fprintf(stderr, " S-Type: (SSR)\n");
+    fprintf(stderr, "================================================================\n");
+    show_instruction_or_error("    ssr");
+    show_instruction_or_error("    ssr t0, 0, 63");
+    show_instruction_or_error("    ssr t0, t1, 64");
+    show_instruction_or_error("    ssr t0, 256, 0");
+    show_instruction_or_error("    ssr t0, -1, 0");
+}
+
+void syscall() {
+    fprintf(stderr, "================================================================\n");
+    fprintf(stderr, " S-Type: (SYSCALL)\n");
+    fprintf(stderr, "================================================================\n");
+    show_instruction_or_error("    syscall");
+    show_instruction_or_error("    syscall 256");
+    show_instruction_or_error("    syscall -1");
+}
+
 int main(void) {
     lw();
     mvi();
+    lsr();
+    ssr();
+    syscall();
 }

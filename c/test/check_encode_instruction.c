@@ -287,12 +287,119 @@ Suite* i_type_suite(void) {
 }
 
 // ================================================================
+//  S-Type
+// ================================================================
+
+START_TEST(test_s_type_rsys_reserved) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    lsr x1, 63"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    ssr x1, 0, 63"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    ssr x1, x2, 63"));
+} END_TEST
+
+START_TEST(test_s_type_rsys_out_of_range) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    lsr x1, 64"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    lsr x1, 128"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    lsr x1, -1"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    ssr x1, 0, 64"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    ssr x1, x2, -1"));
+} END_TEST
+
+START_TEST(test_s_type_ssr_imm_out_of_range) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    ssr x1, 256, 0"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    ssr x1, -1, 0"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    ssr x1, 0x100, 5"));
+} END_TEST
+
+START_TEST(test_s_type_syscall_comment_out_of_range) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    syscall 256"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    syscall -1"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    syscall 0x1000"));
+} END_TEST
+
+START_TEST(test_s_type_lsr_basic) {
+    ck_assert_uint_eq(machine_word("    lsr x0, 0"),   0x00600000);
+    ck_assert_uint_eq(machine_word("    lsr x1, 0"),   0x01600000);
+    ck_assert_uint_eq(machine_word("    lsr x1, 1"),   0x01600100);
+    ck_assert_uint_eq(machine_word("    lsr x2, 5"),   0x02600500);
+    ck_assert_uint_eq(machine_word("    lsr x31, 62"), 0x1F603E00);
+    ck_assert_uint_eq(machine_word("    lsr t0, 10"),  0x03600A00);
+    ck_assert_uint_eq(machine_word("    lsr sp, 0"),   0x02600000);
+} END_TEST
+
+START_TEST(test_s_type_ssr_immediate) {
+    ck_assert_uint_eq(machine_word("    ssr x0, 0, 0"),     0x0060C000);
+    ck_assert_uint_eq(machine_word("    ssr x1, 0, 0"),     0x0061C000);
+    ck_assert_uint_eq(machine_word("    ssr x1, 0xAA, 0"),  0x0061C0AA);
+    ck_assert_uint_eq(machine_word("    ssr x1, 0xFF, 5"),  0x0061C5FF);
+    ck_assert_uint_eq(machine_word("    ssr x2, 128, 62"),  0x0062FE80);
+    ck_assert_uint_eq(machine_word("    ssr t0, 0x42, 10"), 0x0063CA42);
+    ck_assert_uint_eq(machine_word("    ssr sp, 255, 0"),   0x0062C0FF);
+} END_TEST
+
+START_TEST(test_s_type_ssr_register) {
+    ck_assert_uint_eq(machine_word("    ssr x0, x0, 0"),  0x00604000);
+    ck_assert_uint_eq(machine_word("    ssr x1, x0, 0"),  0x00614000);
+    ck_assert_uint_eq(machine_word("    ssr x1, x2, 0"),  0x00614002);
+    ck_assert_uint_eq(machine_word("    ssr x1, x31, 5"), 0x0061451F);
+    ck_assert_uint_eq(machine_word("    ssr x2, x3, 62"), 0x00627E03);
+    ck_assert_uint_eq(machine_word("    ssr t0, t1, 10"), 0x00634A04);
+    ck_assert_uint_eq(machine_word("    ssr sp, s0, 0"),  0x00624010);
+} END_TEST
+
+START_TEST(test_s_type_syscall_basic) {
+    ck_assert_uint_eq(machine_word("    syscall 0"),    0x00603F00);
+    ck_assert_uint_eq(machine_word("    syscall 1"),    0x00603F01);
+    ck_assert_uint_eq(machine_word("    syscall 0xAA"), 0x00603FAA);
+    ck_assert_uint_eq(machine_word("    syscall 255"),  0x00603FFF);
+    ck_assert_uint_eq(machine_word("    syscall 128"),  0x00603F80);
+} END_TEST
+
+START_TEST(test_s_type_expression) {
+    ck_assert_uint_eq(machine_word("    lsr x1, 5 + 3"),          0x01600800);
+    ck_assert_uint_eq(machine_word("    ssr x1, 0x10 + 0x20, 2"), 0x0061C230);
+    ck_assert_uint_eq(machine_word("    syscall 100 + 55"),       0x00603F9B);
+} END_TEST
+
+START_TEST(test_s_type_defines) {
+    Tokenizer line = (Tokenizer){ .line = slice_from_cstring("    lsr x1, CSR_STATUS") };
+    StringToIntMap defines = map_init();
+    map_insert(&defines, slice_from_cstring("CSR_STATUS"), 5);
+    LineError err = {};
+    ck_assert_uint_eq(encode_instruction(&line, &defines, &err).machine_word, 0x01600500);
+    map_free(&defines);
+} END_TEST
+
+Suite* s_type_suite(void) {
+    Suite* suite = suite_create("S-Type");
+
+    TCase* tc_errors = tcase_create("errors");
+    tcase_add_test(tc_errors, test_s_type_rsys_reserved);
+    tcase_add_test(tc_errors, test_s_type_rsys_out_of_range);
+    tcase_add_test(tc_errors, test_s_type_ssr_imm_out_of_range);
+    tcase_add_test(tc_errors, test_s_type_syscall_comment_out_of_range);
+
+    TCase* tc_encodings = tcase_create("encodings");
+    tcase_add_test(tc_encodings, test_s_type_lsr_basic);
+    tcase_add_test(tc_encodings, test_s_type_ssr_immediate);
+    tcase_add_test(tc_encodings, test_s_type_ssr_register);
+    tcase_add_test(tc_encodings, test_s_type_syscall_basic);
+    tcase_add_test(tc_encodings, test_s_type_expression);
+    tcase_add_test(tc_encodings, test_s_type_defines);
+
+    suite_add_tcase(suite, tc_errors);
+    suite_add_tcase(suite, tc_encodings);
+
+    return suite;
+}
+
+// ================================================================
 //  main
 // ================================================================
 
  int main(void) {
     SRunner* suite_runner = srunner_create(m_type_suite());
     srunner_add_suite(suite_runner, i_type_suite());
+    srunner_add_suite(suite_runner, s_type_suite());
 
     srunner_run_all(suite_runner, CK_NORMAL);
     int number_failed = srunner_ntests_failed(suite_runner);

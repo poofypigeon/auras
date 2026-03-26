@@ -323,6 +323,176 @@ WRITEBACK:
 }
 
 // ================================================================
+//  Encode S-Type
+// ================================================================
+
+constexpr size_t   S_IMM_BASE = 0;
+constexpr size_t   S_IMM_BITS = 8;
+constexpr size_t   S_RSYS_BASE      = 8;
+constexpr uint32_t S_ST             = 1u << 14;
+constexpr uint32_t S_I              = 1u << 15;
+constexpr size_t   S_RS1_BASE       = 16;
+constexpr uint32_t S_B              = 1u << 21;
+constexpr uint32_t S_H              = 1u << 22;
+constexpr size_t   S_RD_BASE        = 24;
+constexpr uint32_t S_OPCODE         = 0b000u << 29;
+
+constexpr uint32_t S_RSYS_SYSCALL   = 0x3F;
+constexpr int64_t S_MAX_IMM = (1 << S_IMM_BITS) - 1;
+
+Instruction encode_lsr(Tokenizer* line, StringToIntMap* defines, LineError* err) {
+    uint32_t machine_word = S_OPCODE|S_H|S_B;
+
+    machine_word |= expect_register(line, err) << S_RD_BASE;
+    if (err->error_tag) return (Instruction){};
+
+    if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
+
+    size_t rsys_start_column = tokenizer_next_token_start(line);
+    int64_t rsys = parse_expression(line, err, defines);
+    if (err->error_tag) return (Instruction){};
+
+    if (rsys == S_RSYS_SYSCALL) {
+        *err = (LineError){
+            .error_tag = LINE_ERROR_NOT_ENCODABLE,
+            .not_encodable = (LineErrorNotEncodable){
+                .message = "CSR address 63 is reserved for syscall instruction",
+                .start_column = rsys_start_column,
+                .end_column = line->token_end,
+            },
+        };
+        return (Instruction){};
+    }
+
+    if (rsys < 0 || rsys > S_RSYS_SYSCALL) {
+        *err = (LineError){
+            .error_tag = LINE_ERROR_NOT_ENCODABLE,
+            .not_encodable = (LineErrorNotEncodable){
+                .message = "CSR address out of range (must be 0-62)",
+                .start_column = rsys_start_column,
+                .end_column = line->token_end,
+            },
+        };
+        return (Instruction){};
+    }
+
+    machine_word |= rsys << S_RSYS_BASE;
+
+    return (Instruction){ .machine_word = machine_word };
+}
+
+Instruction encode_ssr(Tokenizer* line, StringToIntMap* defines, LineError* err) {
+    StringSlice token = {};
+    bool eol = false;
+
+    uint32_t machine_word = S_OPCODE|S_H|S_B|S_ST;
+
+    machine_word |= expect_register(line, err) << S_RS1_BASE;
+    if (err->error_tag) return (Instruction){};
+
+    if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
+
+    Tokenizer tokenizer_at_operand_start = *line;
+    size_t operand_start_column = tokenizer_next_token_start(line);
+
+    eol = tokenizer_next(line, &token, err);
+    if (err->error_tag) return (Instruction){};
+    if (eol) {
+        *err = (LineError){
+            .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
+            .unexpected_token = (LineErrorUnexpectedToken){
+                .column = line->token_start,
+                .expected = "register or expression",
+            },
+        };
+        return (Instruction){};
+    }
+
+    uint64_t imm = 0;
+
+    if (!parse_register(token, &imm)) {
+        *line = tokenizer_at_operand_start;
+
+        imm = parse_expression(line, err, defines);
+        if (err->error_tag) return (Instruction){};
+
+        if (imm < 0 || imm > S_MAX_IMM) {
+            *err = (LineError){
+                .error_tag = LINE_ERROR_NOT_ENCODABLE,
+                .not_encodable = (LineErrorNotEncodable){
+                    .message = "immediate value is not encodable with 8 bit unsigned integer",
+                    .start_column = operand_start_column,
+                    .end_column = line->token_end,
+                },
+            };
+            return (Instruction){};
+        }
+
+        machine_word |= S_I;
+    }
+
+    machine_word |= imm << S_IMM_BASE;
+
+    if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
+
+    size_t rsys_start_column = tokenizer_next_token_start(line);
+    int64_t rsys = parse_expression(line, err, defines);
+    if (err->error_tag) return (Instruction){};
+
+    if (rsys == S_RSYS_SYSCALL) {
+        *err = (LineError){
+            .error_tag = LINE_ERROR_NOT_ENCODABLE,
+            .not_encodable = (LineErrorNotEncodable){
+                .message = "CSR address 63 is reserved for syscall instruction",
+                .start_column = rsys_start_column,
+                .end_column = line->token_end,
+            },
+        };
+        return (Instruction){};
+    }
+
+    if (rsys < 0 || rsys > S_RSYS_SYSCALL) {
+        *err = (LineError){
+            .error_tag = LINE_ERROR_NOT_ENCODABLE,
+            .not_encodable = (LineErrorNotEncodable){
+                .message = "CSR address out of range (must be 0-62)",
+                .start_column = rsys_start_column,
+                .end_column = line->token_end,
+            },
+        };
+        return (Instruction){};
+    }
+
+    machine_word |= rsys << S_RSYS_BASE;
+
+    return (Instruction){ .machine_word = machine_word };
+}
+
+Instruction encode_syscall(Tokenizer* line, StringToIntMap* defines, LineError* err) {
+    uint32_t machine_word = S_OPCODE|S_H|S_B|(S_RSYS_SYSCALL << S_RSYS_BASE);
+
+    size_t comment_start_column = tokenizer_next_token_start(line);
+    int64_t comment = parse_expression(line, err, defines);
+    if (err->error_tag) return (Instruction){};
+
+    if (comment < 0 || comment > S_MAX_IMM) {
+        *err = (LineError){
+            .error_tag = LINE_ERROR_NOT_ENCODABLE,
+            .not_encodable = (LineErrorNotEncodable){
+                .message = "comment value is not encodable with 8 bit unsigned integer",
+                .start_column = comment_start_column,
+                .end_column = line->token_end,
+            },
+        };
+        return (Instruction){};
+    }
+
+    machine_word |= comment << S_IMM_BASE;
+
+    return (Instruction){ .machine_word = machine_word };
+}
+
+// ================================================================
 //  Encode I-Type
 // ================================================================
 
@@ -423,6 +593,10 @@ Instruction encode_instruction(Tokenizer* line, StringToIntMap* defines, LineErr
         case MN_SW:  encoding = encode_m_type(line, M_ST,     defines, err); break;
         case MN_SB:  encoding = encode_m_type(line, M_ST|M_B, defines, err); break;
         case MN_SH:  encoding = encode_m_type(line, M_ST|M_H, defines, err); break;
+        // S-Type
+        case MN_LSR: encoding = encode_lsr(line, defines, err); break;
+        case MN_SSR: encoding = encode_ssr(line, defines, err); break;
+        case MN_SYSCALL: encoding = encode_syscall(line, defines, err); break;
         // I-Type
         case MN_MVI: encoding = encode_i_type(line, defines, err); break;
         default: return (Instruction){};
@@ -444,4 +618,3 @@ Instruction encode_instruction(Tokenizer* line, StringToIntMap* defines, LineErr
 
     return encoding;
 }
-
