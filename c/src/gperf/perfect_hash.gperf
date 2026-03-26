@@ -1,0 +1,32 @@
+%{
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+
+#include "perfect_hash.h"
+#include "../string_slice.h"
+%}
+struct MnemonicToken {
+    char* name;
+    Mnemonic mnemonic;
+};
+%%
+addr, MN_ADDR
+word, MN_WORD
+half, MN_HALF
+byte, MN_BYTE
+ascii, MN_ASCII
+align, MN_ALIGN
+lw, MN_LW
+lb, MN_LB
+lh, MN_LH
+lbu, MN_LBU
+lhu, MN_LHU
+sw, MN_SW
+sb, MN_SB
+sh, MN_SH
+%%
+Mnemonic parse_mnemonic(StringSlice token) {
+    struct MnemonicToken* res = in_word_set(token.bytes, token.length);
+    return (res) ? res->mnemonic : MN_INVALID;
+}
