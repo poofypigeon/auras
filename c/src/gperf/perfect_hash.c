@@ -43,7 +43,7 @@ struct MnemonicToken {
     Mnemonic mnemonic;
 };
 
-#define TOTAL_KEYWORDS 14
+#define TOTAL_KEYWORDS 15
 #define MIN_WORD_LENGTH 2
 #define MAX_WORD_LENGTH 5
 #define MIN_HASH_VALUE 2
@@ -72,8 +72,8 @@ hash (register const char *str, register size_t len)
       19, 19, 19, 19, 19, 19, 19, 19, 19, 19,
       19, 19, 19, 19, 19, 19, 19, 19, 19, 19,
       19, 19, 19, 19, 19, 19, 19,  0, 10, 19,
-       5, 19, 19, 19,  0, 19, 19, 19,  5, 19,
-      19,  5, 19, 19, 19,  0, 19, 19, 19,  4,
+       5, 19, 19, 19,  0, 19, 19, 19,  5,  0,
+      19,  5, 19, 19, 19,  0, 19, 19,  0,  4,
       19,  0, 19, 19, 19, 19, 19, 19
     };
   return len + asso_values[(unsigned char)str[1]] + asso_values[(unsigned char)str[0]];
@@ -91,7 +91,8 @@ in_word_set (register const char *str, register size_t len)
       {""}, {""},
 #line 27 "src/gperf/perfect_hash.gperf"
       {"sh", MN_SH},
-      {""},
+#line 28 "src/gperf/perfect_hash.gperf"
+      {"mvi", MN_MVI},
 #line 16 "src/gperf/perfect_hash.gperf"
       {"half", MN_HALF},
 #line 18 "src/gperf/perfect_hash.gperf"
@@ -138,7 +139,7 @@ in_word_set (register const char *str, register size_t len)
     }
   return (struct MnemonicToken *) 0;
 }
-#line 28 "src/gperf/perfect_hash.gperf"
+#line 29 "src/gperf/perfect_hash.gperf"
 
 Mnemonic parse_mnemonic(StringSlice token) {
     struct MnemonicToken* res = in_word_set(token.bytes, token.length);

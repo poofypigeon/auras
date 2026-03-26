@@ -323,6 +323,85 @@ WRITEBACK:
 }
 
 // ================================================================
+//  Encode I-Type
+// ================================================================
+
+constexpr size_t   I_IMM_BASE = 0;
+constexpr size_t   I_IMM_BITS = 23;
+constexpr uint32_t I_IMM_MASK  = 0x00FFFFFF;
+constexpr uint32_t I_SIGN_MASK = 0xFF800000;
+constexpr size_t   I_RD_BASE  = 24;
+constexpr uint32_t I_OPCODE = 0b001u << 29;
+
+constexpr int64_t  I_MAX_IMM = (1 << I_IMM_BITS) - 1;
+constexpr int64_t  I_MIN_IMM = -I_MAX_IMM - 1;
+
+Instruction encode_i_type(Tokenizer* line, StringToIntMap* defines, LineError* err) {
+    uint32_t machine_word = I_OPCODE;
+
+    machine_word |= expect_register(line, err) << I_RD_BASE;
+    if (err->error_tag) return (Instruction){};
+
+    if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
+    size_t imm_start_column = tokenizer_next_token_start(line);
+
+    int64_t imm = parse_expression(line, err, defines);
+    if (err->error_tag) return (Instruction){};
+
+    if (imm >= 0) {
+        if (imm > UINT32_MAX) {
+            *err = (LineError){
+                .error_tag = LINE_ERROR_NOT_ENCODABLE,
+                .not_encodable = (LineErrorNotEncodable){
+                    .message = "immediate value exceeds register width",
+                    .start_column = imm_start_column,
+                    .end_column = line->token_end,
+                },
+            };
+            return (Instruction){};
+        }
+        if (imm > I_MAX_IMM && ((imm & I_SIGN_MASK) != I_SIGN_MASK)) {
+            *err = (LineError){
+                .error_tag = LINE_ERROR_NOT_ENCODABLE,
+                .not_encodable = (LineErrorNotEncodable){
+                    .message = "immediate value is not encodable with 24 bit sign extended integer",
+                    .start_column = imm_start_column,
+                    .end_column = line->token_end,
+                },
+            };
+            return (Instruction){};
+        }
+    } else {
+        if (imm < INT32_MIN) {
+            *err = (LineError){
+                .error_tag = LINE_ERROR_NOT_ENCODABLE,
+                .not_encodable = (LineErrorNotEncodable){
+                    .message = "immediate value exceeds register width",
+                    .start_column = imm_start_column,
+                    .end_column = line->token_end,
+                },
+            };
+            return (Instruction){};
+        }
+        if (imm < I_MIN_IMM) {
+            *err = (LineError){
+                .error_tag = LINE_ERROR_NOT_ENCODABLE,
+                .not_encodable = (LineErrorNotEncodable){
+                    .message = "immediate value is not encodable with 24 bit sign extended integer",
+                    .start_column = imm_start_column,
+                    .end_column = line->token_end,
+                },
+            };
+            return (Instruction){};
+        }
+    }
+
+    machine_word |= (imm & I_IMM_MASK) << I_IMM_BASE;
+
+    return (Instruction){ .machine_word = machine_word };
+}
+
+// ================================================================
 //  Encode Instruction
 // ================================================================
 
@@ -344,6 +423,8 @@ Instruction encode_instruction(Tokenizer* line, StringToIntMap* defines, LineErr
         case MN_SW:  encoding = encode_m_type(line, M_ST,     defines, err); break;
         case MN_SB:  encoding = encode_m_type(line, M_ST|M_B, defines, err); break;
         case MN_SH:  encoding = encode_m_type(line, M_ST|M_H, defines, err); break;
+        // I-Type
+        case MN_MVI: encoding = encode_i_type(line, defines, err); break;
         default: return (Instruction){};
     }
 

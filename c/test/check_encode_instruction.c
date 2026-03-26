@@ -223,6 +223,68 @@ Suite* m_type_suite(void) {
     return suite;
 }
 
+// ================================================================
+//  I-Type
+// ================================================================
+
+START_TEST(test_i_type_literal_too_large) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    mvi x1, 0xf_ffff_ffff_ffff_ffff"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    mvi x1, 'abcdefghi'"));
+} END_TEST
+
+START_TEST(test_i_type_exceeds_register_width) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    mvi x1, 0xffff_ffff_ffff"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    mvi x1, 0xffff_ffff + 1"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    mvi x1, 'abcde'"));
+} END_TEST
+
+START_TEST(test_i_type_mvi_bounds) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    mvi x1, 0x01FF_FFFF"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    mvi x1, -0x01FF_FFFF"));
+} END_TEST
+
+START_TEST(test_i_type_basic) {
+    ck_assert_uint_eq(machine_word("    mvi x1, 0"),          0x21000000);
+    ck_assert_uint_eq(machine_word("    mvi x1, 1"),          0x21000001);
+    ck_assert_uint_eq(machine_word("    mvi x1, 0xAA"),       0x210000AA);
+    ck_assert_uint_eq(machine_word("    mvi x1, -0xAA"),      0x21FFFF56);
+    ck_assert_uint_eq(machine_word("    mvi x1, 0x7FFFFF"),   0x217FFFFF);
+    ck_assert_uint_eq(machine_word("    mvi x1, -8388608"),   0x21800000);
+    ck_assert_uint_eq(machine_word("    mvi x1, -1"),         0x21FFFFFF);
+    ck_assert_uint_eq(machine_word("    mvi x1, 0xFFFFFFFF"), 0x21FFFFFF);
+} END_TEST
+
+START_TEST(test_i_type_expression) {
+    ck_assert_uint_eq(machine_word("    mvi x1, 0x7FFF00 + 0xFF"), 0x217FFFFF);
+} END_TEST
+
+START_TEST(test_i_type_defines) {
+    Tokenizer line = (Tokenizer){ .line = slice_from_cstring("    mvi x1, foo") };
+    StringToIntMap defines = map_init();
+    map_insert(&defines, slice_from_cstring("foo"), -0xAA);
+    LineError err = {};
+    ck_assert_uint_eq(encode_instruction(&line, &defines, &err).machine_word, 0x21FFFF56);
+    map_free(&defines);
+} END_TEST
+
+Suite* i_type_suite(void) {
+    Suite* suite = suite_create("I-Type");
+
+    TCase* tc_errors = tcase_create("errors");
+    tcase_add_test(tc_errors, test_i_type_literal_too_large);
+    tcase_add_test(tc_errors, test_i_type_exceeds_register_width);
+    tcase_add_test(tc_errors, test_i_type_mvi_bounds);
+
+    TCase* tc_encodings = tcase_create("encodings");
+    tcase_add_test(tc_encodings, test_i_type_basic);
+    tcase_add_test(tc_encodings, test_i_type_expression);
+    tcase_add_test(tc_encodings, test_i_type_defines);
+
+    suite_add_tcase(suite, tc_errors);
+    suite_add_tcase(suite, tc_encodings);
+
+    return suite;
+}
 
 // ================================================================
 //  main
@@ -230,6 +292,7 @@ Suite* m_type_suite(void) {
 
  int main(void) {
     SRunner* suite_runner = srunner_create(m_type_suite());
+    srunner_add_suite(suite_runner, i_type_suite());
 
     srunner_run_all(suite_runner, CK_NORMAL);
     int number_failed = srunner_ntests_failed(suite_runner);

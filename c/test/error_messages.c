@@ -43,6 +43,19 @@ void lw() {
     show_instruction_or_error("    lw t0, [t1, 'abcdefghi']");
 }
 
+void mvi() {
+    fprintf(stderr, "================================================================\n");
+    fprintf(stderr, " I-Type (MVI)\n");
+    fprintf(stderr, "================================================================\n");
+    show_instruction_or_error("    mvi");
+    show_instruction_or_error("    mvi 1");
+    show_instruction_or_error("    mvi t0, 1<<23");
+    show_instruction_or_error("    mvi t0, 0xffff_ffff + 1");
+    show_instruction_or_error("    mvi t0, 0xffff_ffff_fffff * 0xfffff_ffff_ffff * 0xfffff_ffff_ffff");
+    show_instruction_or_error("    mvi t0, 0xffff_ffff_fffff * foo");
+}
+
 int main(void) {
     lw();
+    mvi();
 }

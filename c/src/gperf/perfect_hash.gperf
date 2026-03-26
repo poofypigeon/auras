@@ -25,6 +25,7 @@ lhu, MN_LHU
 sw, MN_SW
 sb, MN_SB
 sh, MN_SH
+mvi, MN_MVI
 %%
 Mnemonic parse_mnemonic(StringSlice token) {
     struct MnemonicToken* res = in_word_set(token.bytes, token.length);

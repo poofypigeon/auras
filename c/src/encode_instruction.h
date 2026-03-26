@@ -9,5 +9,4 @@ typedef struct {
     uint32_t machine_word;
 } Instruction;
 
-Instruction encode_m_type(Tokenizer* line, uint32_t flags, StringToIntMap* defines, LineError* err);
 Instruction encode_instruction(Tokenizer* line, StringToIntMap* defines, LineError* err);
