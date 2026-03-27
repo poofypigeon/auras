@@ -19,6 +19,20 @@ static void show_instruction_or_error(char* line_cstring) {
     }
 }
 
+static void show_instruction_or_error_with_define(char* line_cstring, char* define, int64_t value) {
+    Tokenizer line = { .line = slice_from_cstring(line_cstring) };
+    StringToIntMap defines = map_init();
+    map_insert(&defines, slice_from_cstring(define), value);
+    LineError err = {};
+
+    uint32_t machine_word = encode_instruction(&line, &defines, &err).machine_word;
+    if (err.error_tag) {
+        print_line_error("file.s", 1, err, line.line);
+    } else {
+        printf("%s: 0x%08x\n", line_cstring, machine_word);
+    }
+}
+
 void lw() {
     fprintf(stderr, "================================================================\n");
     fprintf(stderr, " M-Type (LW)\n");
@@ -41,6 +55,7 @@ void lw() {
     show_instruction_or_error("    lw t0, [t1, 'x\\xx']");
     show_instruction_or_error("    lw t0, [t1, 'abcde']");
     show_instruction_or_error("    lw t0, [t1, 'abcdefghi']");
+    show_instruction_or_error_with_define("    lw t0, [t1, foo >> 1]", "foo", 0xffffffffffff);
 }
 
 void mvi() {
@@ -63,6 +78,8 @@ void lsr() {
     show_instruction_or_error("    lsr t0, 63");
     show_instruction_or_error("    lsr t0, -1");
     show_instruction_or_error("    lsr t0, 64");
+    show_instruction_or_error_with_define("    lsr t0, BAD_CSR", "BAD_CSR", 0xffffffffffff);
+    show_instruction_or_error_with_define("    lsr t0, BAD_CSR", "BAD_CSR", 63);
 }
 
 void ssr() {
