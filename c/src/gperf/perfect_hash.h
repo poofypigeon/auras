@@ -15,6 +15,15 @@ typedef enum {
     MN_MVI,
     // S-TYPE
     MN_LSR, MN_SSR, MN_SYSCALL,
+    // D-TYPE
+    MN_NOP,
+    MN_MOV, MN_NOT,
+    MN_ADD, MN_ADC, MN_SUB, MN_SBC, MN_AND, MN_OR, MN_XOR,
+    MN_ADDK, MN_ADCK, MN_SUBK, MN_SBCK, MN_ANDK, MN_ORK, MN_XORK,
+    MN_TST, MN_TEQ, MN_CMP, MN_CPN,
+    MN_SLL, MN_SRL, MN_SRA, MN_SLLK,
+    // D-TYPE invalid variants (recognized for better error messages)
+    MN_SRLK, MN_SRAK,
 } Mnemonic;
 
 Mnemonic parse_mnemonic(StringSlice token);

@@ -102,10 +102,53 @@ void syscall() {
     show_instruction_or_error("    syscall -1");
 }
 
+void d_type() {
+    fprintf(stderr, "================================================================\n");
+    fprintf(stderr, " D-Type:\n");
+    fprintf(stderr, "================================================================\n");
+    show_instruction_or_error("    nop x1");
+    show_instruction_or_error("    nop 0xAA");
+
+    show_instruction_or_error("    srlk x1, x2, 5");
+    show_instruction_or_error("    srak x1, x2, 5");
+
+    show_instruction_or_error("    addk x1, x2, x3 srl 1");
+    show_instruction_or_error("    addk x1, x2, x3 sra 1");
+
+    show_instruction_or_error("    add x1, x2, x3 srl 0");
+    show_instruction_or_error("    add x1, x2, x3 sra 0");
+
+    show_instruction_or_error("    adc x1, x2, 3");
+    show_instruction_or_error("    sbc x1, x2, 3");
+    show_instruction_or_error("    adck x1, x2, 3");
+    show_instruction_or_error("    sbck x1, x2, 3");
+
+    show_instruction_or_error("    add t0, t1, 0xf_ffff_ffff_ffff_ffff");
+    show_instruction_or_error("    add t0, t1, 'abcdefghi'");
+
+    show_instruction_or_error("    add t0, t1, 0xffff_ffff_ffff");
+    show_instruction_or_error("    add t0, t1, 0xffff_ffff + 1");
+    show_instruction_or_error("    add t0, t1, 'abcde'");
+
+    show_instruction_or_error("    add x1, x2, 0x2AA00");
+
+    show_instruction_or_error("    add t0, t1, t2 sll -1");
+    show_instruction_or_error("    add t0, t1, t2 sll 1 - 19");
+
+    show_instruction_or_error("    add t0, t1, 200 >> -(100 << 4-1)");
+
+    show_instruction_or_error("    add x1, x2, 0x0011 sll 2");
+    show_instruction_or_error("    add x1, x2, 0x0011 srl 2");
+    show_instruction_or_error("    add x1, x2, 0x0011 sra 2");
+    show_instruction_or_error("    add x1, x2, -257");
+    show_instruction_or_error("    add x2, 256");
+}
+
 int main(void) {
     lw();
     mvi();
     lsr();
     ssr();
     syscall();
+    d_type();
 }

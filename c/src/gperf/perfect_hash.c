@@ -1,6 +1,6 @@
 /* ANSI-C code produced by gperf version 3.3 */
 /* Command-line: gperf -tc7 --output-file=src/gperf/perfect_hash.c src/gperf/perfect_hash.gperf  */
-/* Computed positions: -k'1-2' */
+/* Computed positions: -k'1-4' */
 
 #if !((' ' == 32) && ('!' == 33) && ('"' == 34) && ('#' == 35) \
       && ('%' == 37) && ('&' == 38) && ('\'' == 39) && ('(' == 40) \
@@ -43,12 +43,12 @@ struct MnemonicToken {
     Mnemonic mnemonic;
 };
 
-#define TOTAL_KEYWORDS 18
+#define TOTAL_KEYWORDS 45
 #define MIN_WORD_LENGTH 2
 #define MAX_WORD_LENGTH 7
-#define MIN_HASH_VALUE 3
-#define MAX_HASH_VALUE 39
-/* maximum key range = 37, duplicates = 0 */
+#define MIN_HASH_VALUE 2
+#define MAX_HASH_VALUE 123
+/* maximum key range = 122, duplicates = 0 */
 
 #ifdef __GNUC__
 __inline
@@ -62,21 +62,53 @@ hash (register const char *str, register size_t len)
 {
   static unsigned char asso_values[] =
     {
-      40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
-      40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
-      40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
-      40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
-      40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
-      40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
-      40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
-      40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
-      40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
-      40, 40, 40, 40, 40, 40, 40,  0, 15, 40,
-       0, 40, 40, 40,  5, 40, 40, 40,  5, 10,
-      40,  0, 40, 40, 40,  0, 40, 40,  5, 30,
-      40, 20, 40, 40, 40, 40, 40, 40
+      124, 124, 124, 124, 124, 124, 124, 124, 124, 124,
+      124, 124, 124, 124, 124, 124, 124, 124, 124, 124,
+      124, 124, 124, 124, 124, 124, 124, 124, 124, 124,
+      124, 124, 124, 124, 124, 124, 124, 124, 124, 124,
+      124, 124, 124, 124, 124, 124, 124, 124, 124, 124,
+      124, 124, 124, 124, 124, 124, 124, 124, 124, 124,
+      124, 124, 124, 124, 124, 124, 124, 124, 124, 124,
+      124, 124, 124, 124, 124, 124, 124, 124, 124, 124,
+      124, 124, 124, 124, 124, 124, 124, 124, 124, 124,
+      124, 124, 124, 124, 124, 124, 124,  25,  20,  60,
+       15,  20,  40,   0,  10,   0,   0,   0,   0,  15,
+       25,  30,   0,  25,   5,   5,  21,  10,   2,   0,
+       50,  30, 124, 124, 124, 124, 124, 124, 124
     };
-  return len + asso_values[(unsigned char)str[1]] + asso_values[(unsigned char)str[0]];
+  register unsigned int hval = len;
+
+  switch (hval)
+    {
+      default:
+        hval += asso_values[(unsigned char)str[3]];
+#if (defined __cplusplus && (__cplusplus >= 201703L || (__cplusplus >= 201103L && defined __clang__ && __clang_major__ + (__clang_minor__ >= 9) > 3))) || (defined __STDC_VERSION__ && __STDC_VERSION__ >= 202000L && ((defined __GNUC__ && __GNUC__ >= 10) || (defined __clang__ && __clang_major__ >= 9)))
+      [[fallthrough]];
+#elif (defined __GNUC__ && __GNUC__ >= 7) || (defined __clang__ && __clang_major__ >= 10)
+      __attribute__ ((__fallthrough__));
+#endif
+      /*FALLTHROUGH*/
+      case 3:
+        hval += asso_values[(unsigned char)str[2]+1];
+#if (defined __cplusplus && (__cplusplus >= 201703L || (__cplusplus >= 201103L && defined __clang__ && __clang_major__ + (__clang_minor__ >= 9) > 3))) || (defined __STDC_VERSION__ && __STDC_VERSION__ >= 202000L && ((defined __GNUC__ && __GNUC__ >= 10) || (defined __clang__ && __clang_major__ >= 9)))
+      [[fallthrough]];
+#elif (defined __GNUC__ && __GNUC__ >= 7) || (defined __clang__ && __clang_major__ >= 10)
+      __attribute__ ((__fallthrough__));
+#endif
+      /*FALLTHROUGH*/
+      case 2:
+        hval += asso_values[(unsigned char)str[1]];
+#if (defined __cplusplus && (__cplusplus >= 201703L || (__cplusplus >= 201103L && defined __clang__ && __clang_major__ + (__clang_minor__ >= 9) > 3))) || (defined __STDC_VERSION__ && __STDC_VERSION__ >= 202000L && ((defined __GNUC__ && __GNUC__ >= 10) || (defined __clang__ && __clang_major__ >= 9)))
+      [[fallthrough]];
+#elif (defined __GNUC__ && __GNUC__ >= 7) || (defined __clang__ && __clang_major__ >= 10)
+      __attribute__ ((__fallthrough__));
+#endif
+      /*FALLTHROUGH*/
+      case 1:
+        hval += asso_values[(unsigned char)str[0]];
+        break;
+    }
+  return hval;
 }
 
 struct MnemonicToken *
@@ -88,52 +120,121 @@ in_word_set (register const char *str, register size_t len)
 #endif
   static struct MnemonicToken wordlist[] =
     {
-      {""}, {""}, {""},
-#line 30 "src/gperf/perfect_hash.gperf"
-      {"ssr", MN_SSR},
-#line 14 "src/gperf/perfect_hash.gperf"
-      {"addr", MN_ADDR},
-#line 18 "src/gperf/perfect_hash.gperf"
-      {"ascii", MN_ASCII},
-      {""},
-#line 27 "src/gperf/perfect_hash.gperf"
-      {"sh", MN_SH},
-#line 29 "src/gperf/perfect_hash.gperf"
-      {"lsr", MN_LSR},
-#line 16 "src/gperf/perfect_hash.gperf"
-      {"half", MN_HALF},
-#line 19 "src/gperf/perfect_hash.gperf"
-      {"align", MN_ALIGN},
-      {""},
-#line 22 "src/gperf/perfect_hash.gperf"
-      {"lh", MN_LH},
-#line 24 "src/gperf/perfect_hash.gperf"
-      {"lhu", MN_LHU},
-      {""}, {""}, {""},
-#line 26 "src/gperf/perfect_hash.gperf"
-      {"sb", MN_SB},
-#line 28 "src/gperf/perfect_hash.gperf"
-      {"mvi", MN_MVI},
-      {""}, {""}, {""},
-#line 21 "src/gperf/perfect_hash.gperf"
-      {"lb", MN_LB},
-#line 23 "src/gperf/perfect_hash.gperf"
-      {"lbu", MN_LBU},
-      {""}, {""}, {""},
-#line 31 "src/gperf/perfect_hash.gperf"
-      {"syscall", MN_SYSCALL},
-      {""}, {""}, {""}, {""},
-#line 25 "src/gperf/perfect_hash.gperf"
-      {"sw", MN_SW},
-      {""},
-#line 15 "src/gperf/perfect_hash.gperf"
-      {"word", MN_WORD},
       {""}, {""},
 #line 20 "src/gperf/perfect_hash.gperf"
       {"lw", MN_LW},
+      {""}, {""}, {""}, {""},
+#line 25 "src/gperf/perfect_hash.gperf"
+      {"sw", MN_SW},
+      {""}, {""}, {""}, {""},
+#line 22 "src/gperf/perfect_hash.gperf"
+      {"lh", MN_LH},
+#line 29 "src/gperf/perfect_hash.gperf"
+      {"lsr", MN_LSR},
       {""},
+#line 24 "src/gperf/perfect_hash.gperf"
+      {"lhu", MN_LHU},
+      {""},
+#line 27 "src/gperf/perfect_hash.gperf"
+      {"sh", MN_SH},
+#line 30 "src/gperf/perfect_hash.gperf"
+      {"ssr", MN_SSR},
+      {""},
+#line 28 "src/gperf/perfect_hash.gperf"
+      {"mvi", MN_MVI},
+      {""},
+#line 21 "src/gperf/perfect_hash.gperf"
+      {"lb", MN_LB},
+#line 53 "src/gperf/perfect_hash.gperf"
+      {"sll", MN_SLL},
+#line 56 "src/gperf/perfect_hash.gperf"
+      {"sllk", MN_SLLK},
+#line 23 "src/gperf/perfect_hash.gperf"
+      {"lbu", MN_LBU},
+      {""},
+#line 26 "src/gperf/perfect_hash.gperf"
+      {"sb", MN_SB},
+#line 54 "src/gperf/perfect_hash.gperf"
+      {"srl", MN_SRL},
+#line 57 "src/gperf/perfect_hash.gperf"
+      {"srlk", MN_SRLK},
+#line 19 "src/gperf/perfect_hash.gperf"
+      {"align", MN_ALIGN},
+      {""}, {""},
+#line 55 "src/gperf/perfect_hash.gperf"
+      {"sra", MN_SRA},
+#line 58 "src/gperf/perfect_hash.gperf"
+      {"srak", MN_SRAK},
+      {""}, {""},
+#line 40 "src/gperf/perfect_hash.gperf"
+      {"or", MN_OR},
+#line 47 "src/gperf/perfect_hash.gperf"
+      {"ork", MN_ORK},
+#line 49 "src/gperf/perfect_hash.gperf"
+      {"tst", MN_TST},
+      {""}, {""}, {""},
+#line 38 "src/gperf/perfect_hash.gperf"
+      {"sbc", MN_SBC},
+#line 45 "src/gperf/perfect_hash.gperf"
+      {"sbck", MN_SBCK},
+      {""}, {""}, {""},
+#line 33 "src/gperf/perfect_hash.gperf"
+      {"mov", MN_MOV},
+#line 50 "src/gperf/perfect_hash.gperf"
+      {"teq", MN_TEQ},
+#line 18 "src/gperf/perfect_hash.gperf"
+      {"ascii", MN_ASCII},
+      {""}, {""}, {""},
+#line 15 "src/gperf/perfect_hash.gperf"
+      {"word", MN_WORD},
+      {""}, {""}, {""},
+#line 36 "src/gperf/perfect_hash.gperf"
+      {"adc", MN_ADC},
+#line 43 "src/gperf/perfect_hash.gperf"
+      {"adck", MN_ADCK},
+      {""}, {""}, {""},
+#line 35 "src/gperf/perfect_hash.gperf"
+      {"add", MN_ADD},
+#line 42 "src/gperf/perfect_hash.gperf"
+      {"addk", MN_ADDK},
+      {""}, {""}, {""},
+#line 34 "src/gperf/perfect_hash.gperf"
+      {"not", MN_NOT},
+#line 14 "src/gperf/perfect_hash.gperf"
+      {"addr", MN_ADDR},
+      {""}, {""}, {""},
+#line 39 "src/gperf/perfect_hash.gperf"
+      {"and", MN_AND},
+#line 46 "src/gperf/perfect_hash.gperf"
+      {"andk", MN_ANDK},
+      {""}, {""}, {""},
+#line 37 "src/gperf/perfect_hash.gperf"
+      {"sub", MN_SUB},
+#line 44 "src/gperf/perfect_hash.gperf"
+      {"subk", MN_SUBK},
+      {""}, {""}, {""},
+#line 32 "src/gperf/perfect_hash.gperf"
+      {"nop", MN_NOP},
 #line 17 "src/gperf/perfect_hash.gperf"
-      {"byte", MN_BYTE}
+      {"byte", MN_BYTE},
+      {""}, {""}, {""},
+#line 41 "src/gperf/perfect_hash.gperf"
+      {"xor", MN_XOR},
+#line 48 "src/gperf/perfect_hash.gperf"
+      {"xork", MN_XORK},
+      {""}, {""}, {""},
+#line 52 "src/gperf/perfect_hash.gperf"
+      {"cpn", MN_CPN},
+#line 16 "src/gperf/perfect_hash.gperf"
+      {"half", MN_HALF},
+      {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+#line 51 "src/gperf/perfect_hash.gperf"
+      {"cmp", MN_CMP},
+      {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+      {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+      {""},
+#line 31 "src/gperf/perfect_hash.gperf"
+      {"syscall", MN_SYSCALL}
     };
 #if (defined __GNUC__ && __GNUC__ + (__GNUC_MINOR__ >= 6) > 4) || (defined __clang__ && __clang_major__ >= 3)
 #pragma GCC diagnostic pop
@@ -153,7 +254,7 @@ in_word_set (register const char *str, register size_t len)
     }
   return (struct MnemonicToken *) 0;
 }
-#line 32 "src/gperf/perfect_hash.gperf"
+#line 59 "src/gperf/perfect_hash.gperf"
 
 Mnemonic parse_mnemonic(StringSlice token) {
     struct MnemonicToken* res = in_word_set(token.bytes, token.length);

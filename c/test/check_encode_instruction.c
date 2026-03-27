@@ -252,6 +252,7 @@ START_TEST(test_i_type_basic) {
     ck_assert_uint_eq(machine_word("    mvi x1, -8388608"),   0x21800000);
     ck_assert_uint_eq(machine_word("    mvi x1, -1"),         0x21FFFFFF);
     ck_assert_uint_eq(machine_word("    mvi x1, 0xFFFFFFFF"), 0x21FFFFFF);
+    ck_assert_uint_eq(machine_word("    mvi x1, 0xFFFF0000"), 0x21FF0000);
 } END_TEST
 
 START_TEST(test_i_type_expression) {
@@ -393,6 +394,343 @@ Suite* s_type_suite(void) {
 }
 
 // ================================================================
+//  D-Type
+// ================================================================
+
+START_TEST(test_d_type_nop_unexpected_token) {
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    nop x1"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    nop 0xAA"));
+} END_TEST
+
+START_TEST(test_d_type_mov_unexpected_token) {
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    mov x1, x2, x3"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    mov x1, x2, 0xAA"));
+} END_TEST
+
+START_TEST(test_d_type_not_unexpected_token) {
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    not x1, x2, x3"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    not x1, x2, 0xAA"));
+} END_TEST
+
+START_TEST(test_d_type_no_rd_unexpected_token) {
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    tst x1, x2, x3"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    teq x1, x2, 0xAA"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    cmp x1, x2, x3 lsl 2"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    cpn x1, x2, 10 + 2"));
+} END_TEST
+
+START_TEST(test_d_type_invalid_shift_keep) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    srlk x1, x2, 3"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    srak x1, x2, 3"));
+} END_TEST
+
+START_TEST(test_d_type_shift_amount_out_of_range) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add x1, x2, x3 srl 33"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add x1, x2, x3 sra 33"));
+} END_TEST
+
+START_TEST(test_d_type_shift_on_immediate) {
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    add x1, x2, 0x0011 sll 2"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    add x1, x2, 0x0011 srl 2"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    add x1, x2, 0x0011 sra 2"));
+}
+
+START_TEST(test_d_type_right_shift_keep) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    addk x1, x2, x3 srl 1"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    addk x1, x2, x3 sra 1"));
+} END_TEST
+
+START_TEST(test_d_type_right_shift_zero) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add x1, x2, x3 srl 0"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add x1, x2, x3 sra 0"));
+} END_TEST
+
+START_TEST(test_d_type_standalone_right_shift_zero) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    srl x1, x2, 0"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    sra x1, x2, 0"));
+} END_TEST
+
+START_TEST(test_d_type_carry_in_immediate) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    adc x1, x2, 3"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    sbc x1, x2, 3"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    adck x1, x2, 3"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    sbck x1, x2, 3"));
+} END_TEST
+
+START_TEST(test_d_type_imm_out_of_range) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add x1, x2, -257"));
+} END_TEST
+
+START_TEST(test_d_type_literal_too_large) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add t0, t1, 0xf_ffff_ffff_ffff_ffff"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add t0, t1, 'abcdefghi'"));
+} END_TEST
+
+START_TEST(test_d_type_exceeds_register_width) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add t0, t1, 0xffff_ffff_ffff"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add t0, t1, 0xffff_ffff + 1"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add t0, t1, 'abcde'"));
+} END_TEST
+
+START_TEST(test_d_type_immediate_too_wide) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add x1, x2, 0x2AA00"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add x1, x2, 0x34100"));
+} END_TEST
+
+START_TEST(test_d_type_auto_shift_non_encodable_values) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add x1, x2, 0x0100_0001"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    add x1, x2, -0x0100_0001"));
+} END_TEST
+
+START_TEST(test_d_type_negative_shift_amount) {
+    ck_assert(produces_line_error(LINE_ERROR_NEGATIVE_SHIFT_AMOUNT, "    add t0, t1, t2 sll -1"));
+    ck_assert(produces_line_error(LINE_ERROR_NEGATIVE_SHIFT_AMOUNT, "    add t0, t1, t2 sll 1 - 19"));
+} END_TEST
+
+START_TEST(test_d_type_negative_shift_amount_in_expression) {
+    ck_assert(produces_line_error(LINE_ERROR_NEGATIVE_SHIFT_AMOUNT, "    add t0, t1, 200 >> -(100 << 4-1)"));
+} END_TEST
+
+START_TEST(test_d_type_unknown_escape_sequence) {
+    ck_assert(produces_line_error(LINE_ERROR_UNKNOWN_ESCAPE_SEQUENCE, "    add t0, t1, 'x\\xx'"));
+    ck_assert(produces_line_error(LINE_ERROR_UNKNOWN_ESCAPE_SEQUENCE, "    add t0, t1, 'x\\.x'"));
+} END_TEST
+
+START_TEST(test_d_type_undefined_identifier) {
+    ck_assert(produces_line_error(LINE_ERROR_UNDEFINED_IDENTIFIER, "    add t0, t1, t2 sll ~foo * bar]"));
+    ck_assert(produces_line_error(LINE_ERROR_UNDEFINED_IDENTIFIER, "    add t0, t1, _"));
+} END_TEST
+
+START_TEST(test_d_type_nop) {
+    ck_assert_uint_eq(machine_word("    nop"), 0x40002000);
+} END_TEST
+
+START_TEST(test_d_type_mov) {
+    ck_assert_uint_eq(machine_word("    mov x1, x2"), 0x41022000);
+    ck_assert_uint_eq(machine_word("    mov x1, x1"), 0x41012000);
+} END_TEST
+
+START_TEST(test_d_type_not) {
+    ck_assert_uint_eq(machine_word("    not x1, x2"), 0x41A280FF);
+    ck_assert_uint_eq(machine_word("    not x1, x1"), 0x41A180FF);
+} END_TEST
+
+START_TEST(test_d_type_add_basic) {
+    ck_assert_uint_eq(machine_word("    add x1, x2, 0"),     0x41028000);
+    ck_assert_uint_eq(machine_word("    add x1, x2, 1"),     0x41028001);
+    ck_assert_uint_eq(machine_word("    add x1, x2, 0xAA"),  0x410280AA);
+    ck_assert_uint_eq(machine_word("    add x1, x2, -0xAA"), 0x41828056);
+    ck_assert_uint_eq(machine_word("    add x1, x2, 255"),   0x410280FF);
+    ck_assert_uint_eq(machine_word("    add x1, x2, -256"),  0x41828000);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3"),    0x41020003);
+    ck_assert_uint_eq(machine_word("    add x31, x30, x29"), 0x5F1E001D);
+} END_TEST
+
+START_TEST(test_d_type_sub_basic) {
+    ck_assert_uint_eq(machine_word("    sub x1, x2, x3"), 0x41820003);
+    ck_assert_uint_eq(machine_word("    sub x1, x2, 3"),  0x418280fd);
+} END_TEST
+
+START_TEST(test_d_type_logical_ops) {
+    ck_assert_uint_eq(machine_word("    and x1, x2, x3"),   0x41420003);
+    ck_assert_uint_eq(machine_word("    and x1, x2, 0xAA"), 0x414280AA);
+    ck_assert_uint_eq(machine_word("    or x1, x2, x3"),    0x41620003);
+    ck_assert_uint_eq(machine_word("    or x1, x2, 0xAA"),  0x416280AA);
+    ck_assert_uint_eq(machine_word("    xor x1, x2, x3"),   0x41220003);
+    ck_assert_uint_eq(machine_word("    xor x1, x2, 0xAA"), 0x412280AA);
+} END_TEST
+
+START_TEST(test_d_type_compare_ops) {
+    ck_assert_uint_eq(machine_word("    tst x2, x3"),   0x40420003);
+    ck_assert_uint_eq(machine_word("    tst x2, 0xAA"), 0x404280AA);
+    ck_assert_uint_eq(machine_word("    teq x2, x3"),   0x40220003);
+    ck_assert_uint_eq(machine_word("    teq x2, 0xAA"), 0x402280AA);
+    ck_assert_uint_eq(machine_word("    cmp x2, x3"),   0x40820003);
+    ck_assert_uint_eq(machine_word("    cmp x2, 0xAA"), 0x40828056);
+    ck_assert_uint_eq(machine_word("    cpn x2, x3"),   0x40020003);
+    ck_assert_uint_eq(machine_word("    cpn x2, 0xAA"), 0x400280AA);
+} END_TEST
+
+START_TEST(test_d_type_carry_ops) {
+    ck_assert_uint_eq(machine_word("    adc x1, x2, x3"), 0x41020083);
+    ck_assert_uint_eq(machine_word("    sbc x1, x2, x3"), 0x41820083);
+} END_TEST
+
+START_TEST(test_d_type_keep_variants) {
+    ck_assert_uint_eq(machine_word("    addk x1, x2, x3"), 0x41022003);
+    ck_assert_uint_eq(machine_word("    addk x1, x2, 5"),  0x4102A005);
+    ck_assert_uint_eq(machine_word("    subk x1, x2, x3"), 0x41822003);
+    ck_assert_uint_eq(machine_word("    andk x1, x2, x3"), 0x41422003);
+    ck_assert_uint_eq(machine_word("    andk x1, x2, 5"),  0x4142A005);
+    ck_assert_uint_eq(machine_word("    ork  x1, x2, x3"), 0x41622003);
+    ck_assert_uint_eq(machine_word("    ork  x1, x2, 5"),  0x4162A005);
+    ck_assert_uint_eq(machine_word("    xork x1, x2, x3"), 0x41222003);
+    ck_assert_uint_eq(machine_word("    xork x1, x2, 5"),  0x4122A005);
+} END_TEST
+
+START_TEST(test_d_type_carry_keep_variants) {
+    ck_assert_uint_eq(machine_word("    adck x1, x2, x3"), 0x41022083);
+    ck_assert_uint_eq(machine_word("    sbck x1, x2, x3"), 0x41822083);
+} END_TEST
+
+START_TEST(test_d_type_shift_immediate) {
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll 0"),  0x41020003);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll 5"),  0x41020503);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll 31"), 0x41021F03);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 srl 1"),  0x41024103);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 srl 5"),  0x41024503);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 srl 31"), 0x41025F03);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 srl 32"), 0x41024003);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sra 1"),  0x41026103);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sra 5"),  0x41026503);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sra 32"), 0x41026003);
+} END_TEST
+
+START_TEST(test_d_type_shift_register) {
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll x4"),  0xC1020403);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 srl x4"),  0xC1024403);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sra x4"),  0xC1026403);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll x31"), 0xC1021F03);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll x0"),  0xC1020003);
+} END_TEST
+
+START_TEST(test_d_type_shift_standalone) {
+    ck_assert_uint_eq(machine_word("    sll x1, x3, 0"),  0x41000003);
+    ck_assert_uint_eq(machine_word("    sll x1, x3, 5"),  0x41000503);
+    ck_assert_uint_eq(machine_word("    sll x1, x3, x4"), 0xC1000403);
+    ck_assert_uint_eq(machine_word("    srl x1, x3, 1"),  0x41004103);
+    ck_assert_uint_eq(machine_word("    srl x1, x3, 32"), 0x41004003);
+    ck_assert_uint_eq(machine_word("    srl x1, x3, x4"), 0xC1004403);
+    ck_assert_uint_eq(machine_word("    sra x1, x3, 1"),  0x41006103);
+    ck_assert_uint_eq(machine_word("    sra x1, x3, 32"), 0x41006003);
+    ck_assert_uint_eq(machine_word("    sra x1, x3, x4"), 0xC1006403);
+    ck_assert_uint_eq(machine_word("    sllk x1, x3, 5"), 0x41002503);
+} END_TEST
+
+START_TEST(test_d_type_shift_left_keep) {
+    ck_assert_uint_eq(machine_word("    addk x1, x2, x3 sll x4"),  0xC1022403);
+} END_TEST
+
+START_TEST(test_d_type_shift_full_range) {
+    ck_assert_uint_eq(machine_word("    add t0, t1, 0x7f00_0000"), 0x430497fe);
+} END_TEST
+
+START_TEST(test_d_type_all_shift_amounts) {
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll 0"),  0x41020003);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll 1"),  0x41020103);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll 15"), 0x41020F03);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll 16"), 0x41021003);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll 30"), 0x41021E03);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll 31"), 0x41021F03);
+} END_TEST
+
+START_TEST(test_d_type_expression) {
+    ck_assert_uint_eq(machine_word("    add x1, x2, 10 + 5"),       0x4102800F);
+    ck_assert_uint_eq(machine_word("    add x1, x2, x3 sll 2 + 3"), 0x41020503);
+} END_TEST
+
+START_TEST(test_d_type_defines) {
+    Tokenizer line = (Tokenizer){ .line = slice_from_cstring("    add x1, x2, MY_CONST") };
+    StringToIntMap defines = map_init();
+    map_insert(&defines, slice_from_cstring("MY_CONST"), 42);
+    LineError err = {};
+    ck_assert_uint_eq(encode_instruction(&line, &defines, &err).machine_word, 0x4102802A);
+    map_free(&defines);
+} END_TEST
+
+START_TEST(test_d_type_shift_with_defines) {
+    Tokenizer line = (Tokenizer){ .line = slice_from_cstring("    add x1, x2, x3 sll SHIFT_AMT") };
+    StringToIntMap defines = map_init();
+    map_insert(&defines, slice_from_cstring("SHIFT_AMT"), 5);
+    LineError err = {};
+    ck_assert_uint_eq(encode_instruction(&line, &defines, &err).machine_word, 0x41020503);
+    map_free(&defines);
+} END_TEST
+
+START_TEST(test_d_type_assembler_auto_shift) {
+    ck_assert_uint_eq(machine_word("    add x1, x2, 0x550"),   0x410283AA);
+    ck_assert_uint_eq(machine_word("    add x1, x2, 0x14400"), 0x410289A2);
+    ck_assert_uint_eq(machine_word("    add x1, x2, 0x6480"),  0x410287C9);
+} END_TEST
+
+START_TEST(test_d_type_auto_shift_negative_literal) {
+    ck_assert_uint_eq(machine_word("    add x1, x2, -0x15800"), 0x41828954);
+} END_TEST
+
+START_TEST(test_d_type_auto_shift_positive_msb_literal) {
+    ck_assert_uint_eq(machine_word("    add x1, x2, 0xFFFEA800"), 0x41828954);
+} END_TEST
+
+Suite* d_type_suite(void) {
+    Suite* suite = suite_create("D-Type");
+
+    TCase* tc_errors = tcase_create("errors");
+    // Syntax / arity errors
+    tcase_add_test(tc_errors, test_d_type_nop_unexpected_token);
+    tcase_add_test(tc_errors, test_d_type_mov_unexpected_token);
+    tcase_add_test(tc_errors, test_d_type_not_unexpected_token);
+    tcase_add_test(tc_errors, test_d_type_no_rd_unexpected_token);
+    tcase_add_test(tc_errors, test_d_type_shift_on_immediate);
+
+    // Shift-form constraints
+    tcase_add_test(tc_errors, test_d_type_invalid_shift_keep);
+    tcase_add_test(tc_errors, test_d_type_right_shift_keep);
+    tcase_add_test(tc_errors, test_d_type_shift_amount_out_of_range);
+    tcase_add_test(tc_errors, test_d_type_right_shift_zero);
+    tcase_add_test(tc_errors, test_d_type_standalone_right_shift_zero);
+    tcase_add_test(tc_errors, test_d_type_negative_shift_amount);
+    tcase_add_test(tc_errors, test_d_type_negative_shift_amount_in_expression);
+
+    // Operand / numeric encoding constraints
+    tcase_add_test(tc_errors, test_d_type_carry_in_immediate);
+    tcase_add_test(tc_errors, test_d_type_imm_out_of_range);
+    tcase_add_test(tc_errors, test_d_type_immediate_too_wide);
+    tcase_add_test(tc_errors, test_d_type_auto_shift_non_encodable_values);
+    tcase_add_test(tc_errors, test_d_type_literal_too_large);
+    tcase_add_test(tc_errors, test_d_type_exceeds_register_width);
+
+    // Expression parser/identifier diagnostics
+    tcase_add_test(tc_errors, test_d_type_unknown_escape_sequence);
+    tcase_add_test(tc_errors, test_d_type_undefined_identifier);
+
+    TCase* tc_encodings = tcase_create("encodings");
+    // Pseudo forms
+    tcase_add_test(tc_encodings, test_d_type_nop);
+    tcase_add_test(tc_encodings, test_d_type_mov);
+    tcase_add_test(tc_encodings, test_d_type_not);
+
+    // Arithmetic / logical families
+    tcase_add_test(tc_encodings, test_d_type_add_basic);
+    tcase_add_test(tc_encodings, test_d_type_sub_basic);
+    tcase_add_test(tc_encodings, test_d_type_logical_ops);
+    tcase_add_test(tc_encodings, test_d_type_compare_ops);
+    tcase_add_test(tc_encodings, test_d_type_carry_ops);
+    tcase_add_test(tc_encodings, test_d_type_keep_variants);
+    tcase_add_test(tc_encodings, test_d_type_carry_keep_variants);
+
+    // Shift forms
+    tcase_add_test(tc_encodings, test_d_type_shift_immediate);
+    tcase_add_test(tc_encodings, test_d_type_shift_register);
+    tcase_add_test(tc_encodings, test_d_type_shift_standalone);
+    tcase_add_test(tc_encodings, test_d_type_shift_left_keep);
+    tcase_add_test(tc_encodings, test_d_type_shift_full_range);
+    tcase_add_test(tc_encodings, test_d_type_all_shift_amounts);
+
+    // Expressions, defines, and assembler-assisted immediate packing
+    tcase_add_test(tc_encodings, test_d_type_expression);
+    tcase_add_test(tc_encodings, test_d_type_defines);
+    tcase_add_test(tc_encodings, test_d_type_shift_with_defines);
+    tcase_add_test(tc_encodings, test_d_type_assembler_auto_shift);
+    tcase_add_test(tc_encodings, test_d_type_auto_shift_negative_literal);
+    tcase_add_test(tc_encodings, test_d_type_auto_shift_positive_msb_literal);
+
+    suite_add_tcase(suite, tc_errors);
+    suite_add_tcase(suite, tc_encodings);
+
+    return suite;
+}
+
+// ================================================================
 //  main
 // ================================================================
 
@@ -400,6 +738,7 @@ Suite* s_type_suite(void) {
     SRunner* suite_runner = srunner_create(m_type_suite());
     srunner_add_suite(suite_runner, i_type_suite());
     srunner_add_suite(suite_runner, s_type_suite());
+    srunner_add_suite(suite_runner, d_type_suite());
 
     srunner_run_all(suite_runner, CK_NORMAL);
     int number_failed = srunner_ntests_failed(suite_runner);

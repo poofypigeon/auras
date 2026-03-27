@@ -29,6 +29,33 @@ mvi, MN_MVI
 lsr, MN_LSR
 ssr, MN_SSR
 syscall, MN_SYSCALL
+nop, MN_NOP
+mov, MN_MOV
+not, MN_NOT
+add, MN_ADD
+adc, MN_ADC
+sub, MN_SUB
+sbc, MN_SBC
+and, MN_AND
+or, MN_OR
+xor, MN_XOR
+addk, MN_ADDK
+adck, MN_ADCK
+subk, MN_SUBK
+sbck, MN_SBCK
+andk, MN_ANDK
+ork, MN_ORK
+xork, MN_XORK
+tst, MN_TST
+teq, MN_TEQ
+cmp, MN_CMP
+cpn, MN_CPN
+sll, MN_SLL
+srl, MN_SRL
+sra, MN_SRA
+sllk, MN_SLLK
+srlk, MN_SRLK
+srak, MN_SRAK
 %%
 Mnemonic parse_mnemonic(StringSlice token) {
     struct MnemonicToken* res = in_word_set(token.bytes, token.length);
