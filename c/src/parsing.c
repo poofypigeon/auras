@@ -15,17 +15,15 @@ static bool is_symbol_start_char(char c) {
     return isalpha(c) || c == '_';
 }
 
-// Returns true if EOL reached
-// TODO -- could this just return an empty token for EOL?
-bool tokenizer_next(Tokenizer* tokenizer, StringSlice* token, LineError* err) {
+StringSlice tokenizer_next(Tokenizer* tokenizer, LineError* err) {
     StringSlice* line = &tokenizer->line;
 
     for (; tokenizer->token_end < line->length; tokenizer->token_end++) {
         if (!isspace(line->bytes[tokenizer->token_end])) break;
     }
     tokenizer->token_start = tokenizer->token_end;
-    if (tokenizer->token_end == line->length) return true;
-    if (line->bytes[tokenizer->token_start] == ';') return true;
+    if (tokenizer->token_end == line->length) return (StringSlice){};
+    if (line->bytes[tokenizer->token_start] == ';') return (StringSlice){};
     tokenizer->token_end++;
 
     // String literals and character literals are consumed as one token
@@ -37,7 +35,7 @@ bool tokenizer_next(Tokenizer* tokenizer, StringSlice* token, LineError* err) {
                     .error_tag = LINE_ERROR_UNEXPECTED_EOL,
                     .unexpected_eol = (LineErrorUnexpectedEOL){ .column = tokenizer->token_end },
                 };
-                return false;
+                return (StringSlice){};
             }
 
             if (line->bytes[tokenizer->token_end] == line->bytes[tokenizer->token_start] && !escaped) break;
@@ -45,35 +43,39 @@ bool tokenizer_next(Tokenizer* tokenizer, StringSlice* token, LineError* err) {
             tokenizer->token_end++;
         }
         tokenizer->token_end++;
-        token->bytes = &line->bytes[tokenizer->token_start];
-        token->length = tokenizer->token_end - tokenizer->token_start;
-        return false;
+        return (StringSlice){
+            .bytes = &line->bytes[tokenizer->token_start],
+            .length = tokenizer->token_end - tokenizer->token_start,
+        };
     }
 
     // Shift operators ('<<', '>>') are the only two-character operators
     if (tokenizer->token_end != line->length && (line->bytes[tokenizer->token_start] == '<' || line->bytes[tokenizer->token_start] == '>')) {
         if (line->bytes[tokenizer->token_start+1] == line->bytes[tokenizer->token_start]) {
             tokenizer->token_end++;
-            token->bytes = &line->bytes[tokenizer->token_start];
-            token->length = tokenizer->token_end - tokenizer->token_start;
-            return false;
+            return (StringSlice){
+                .bytes = &line->bytes[tokenizer->token_start],
+                .length = tokenizer->token_end - tokenizer->token_start,
+            };
         }
     }
 
     // Any non-alphanumeric characters besides whitespace and underscores are distinct tokens
     if (!is_symbol_start_char(line->bytes[tokenizer->token_start]) && !isdigit(line->bytes[tokenizer->token_start])) {
-        token->bytes = &line->bytes[tokenizer->token_start];
-        token->length = tokenizer->token_end - tokenizer->token_start;
-        return false;
+        return (StringSlice){
+            .bytes = &line->bytes[tokenizer->token_start],
+            .length = tokenizer->token_end - tokenizer->token_start,
+        };
     }
 
     // Consume characters until a non-label character is encountered
     for (; tokenizer->token_end < line->length; tokenizer->token_end++) {
         if (!is_symbol_start_char(line->bytes[tokenizer->token_end]) && !isdigit(line->bytes[tokenizer->token_end])) break;
     }
-    token->bytes = &line->bytes[tokenizer->token_start];
-    token->length = tokenizer->token_end - tokenizer->token_start;
-    return false;
+    return (StringSlice){
+        .bytes = &line->bytes[tokenizer->token_start],
+        .length = tokenizer->token_end - tokenizer->token_start,
+    };
 }
 
 size_t tokenizer_next_token_start(Tokenizer* tokenizer) {
@@ -89,10 +91,12 @@ void tokenizer_put_back(Tokenizer* tokenizer) {
     tokenizer->token_end = tokenizer->token_start;
 }
 
-void tokenizer_curr(Tokenizer* tokenizer, StringSlice* token) {
+StringSlice tokenizer_curr(Tokenizer* tokenizer) {
     StringSlice* line = &tokenizer->line;
-    token->bytes = &line->bytes[tokenizer->token_start];
-    token->length = tokenizer->token_end - tokenizer->token_start;
+    return (StringSlice){
+        .bytes = &line->bytes[tokenizer->token_start],
+        .length = tokenizer->token_end - tokenizer->token_start,
+    };
 }
 
 bool parse_register(StringSlice token, uint64_t* reg) { 
@@ -314,9 +318,9 @@ uint64_t expect_register(Tokenizer* line, LineError* err) {
     StringSlice token = {};
     uint64_t reg = 0;
 
-    bool eol = tokenizer_next(line, &token, err);
+    token = tokenizer_next(line, err);
     if (err->error_tag) return 0;
-    if (eol) {
+    if (token.length == 0) {
         *err = (LineError){
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){
@@ -343,10 +347,9 @@ uint64_t expect_register(Tokenizer* line, LineError* err) {
 } 
 
 bool expect_token(Tokenizer* line, StringSlice expected_token, LineError* err) {
-    StringSlice token = {};
-    bool eol = tokenizer_next(line, &token, err);
+    StringSlice token = tokenizer_next(line, err);
     if (err->error_tag) return false;
-    if (eol) {
+    if (token.length == 0) {
         *err = (LineError){
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){
@@ -371,10 +374,9 @@ bool expect_token(Tokenizer* line, StringSlice expected_token, LineError* err) {
 }
 
 StringSlice expect_label(Tokenizer* line, LineError* err) {
-    StringSlice token = {};
-    bool eol = tokenizer_next(line, &token, err);
+    StringSlice token = tokenizer_next(line, err);
     if (err->error_tag) return (StringSlice){};
-    if (eol) {
+    if (token.length == 0) {
         *err = (LineError){
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){
@@ -416,20 +418,18 @@ typedef enum {
 static int64_t expression(Tokenizer* line, LineError* err, StringToIntMap* defines, BindingPower rbp);
 
 static int64_t null_denotation(Tokenizer* line, LineError* err, StringToIntMap* defines) {
-    StringSlice token = {};
-    tokenizer_curr(line, &token);
+    StringSlice token = tokenizer_curr(line);
 
     size_t nud_start = line->token_start;
     char unary_operation = '+';
-    bool eol;
     switch (token.bytes[0]) {
     case '-':
     case '~':
         unary_operation = token.bytes[0];
     case '+':
-        eol = tokenizer_next(line, &token, err);
+        token = tokenizer_next(line, err);
         if (err->error_tag) return 0;
-        if (eol) {
+        if (token.length == 0) {
             *err = (LineError){
                 .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
                 .unexpected_token = (LineErrorUnexpectedToken){
@@ -446,9 +446,9 @@ static int64_t null_denotation(Tokenizer* line, LineError* err, StringToIntMap* 
         value = expression(line, err, defines, 0);
         if (err->error_tag) return 0;
 
-        eol = tokenizer_next(line, &token, err);
+        token = tokenizer_next(line, err);
         if (err->error_tag) return 0;
-        if (eol) {
+        if (token.length == 0) {
             *err = (LineError){
                 .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
                 .unexpected_token = (LineErrorUnexpectedToken){
@@ -550,10 +550,9 @@ static BindingPower binding_power(StringSlice token) {
 }
 
 static int64_t expression(Tokenizer* line, LineError* err, StringToIntMap* defines, BindingPower rbp) {
-    StringSlice token = {};
-    bool eol = tokenizer_next(line, &token, err);
+    StringSlice token = tokenizer_next(line, err);
     if (err->error_tag) return 0;
-    if (eol) {
+    if (token.length == 0) {
         *err = (LineError){
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){
@@ -570,10 +569,10 @@ static int64_t expression(Tokenizer* line, LineError* err, StringToIntMap* defin
     size_t expression_start_column = 0;
 
     while (true) {
-        eol = tokenizer_next(line, &token, err);
+        token = tokenizer_next(line, err);
         if (err->error_tag) return 0;
 
-        BindingPower bp = (eol) ? BP_NONE : binding_power(token);
+        BindingPower bp = (token.length == 0) ? BP_NONE : binding_power(token);
 
         if (bp <= rbp) break;
 

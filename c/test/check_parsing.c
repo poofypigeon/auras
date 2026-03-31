@@ -16,33 +16,30 @@
 
 START_TEST(test_tokenizer_string_literal_unexpected_eol) {
     Tokenizer line = {};
-    StringSlice token = {};
     LineError err = {};
 
     line = (Tokenizer){ .line = slice_from_cstring("\" foo") };
-    (void)tokenizer_next(&line, &token, &err);
+    (void)tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_EOL);
 
     line = (Tokenizer){ .line = slice_from_cstring("\"\\\" foo") };
-    (void)tokenizer_next(&line, &token, &err);
+    (void)tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_EOL);
 } END_TEST
 
 START_TEST(test_tokenizer_string_literal) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring("\"foo\" bar") };
-    StringSlice token = {};
     LineError err = {};
 
-    (void)tokenizer_next(&line, &token, &err);
+    StringSlice token = tokenizer_next(&line, &err);
     ck_assert(slice_eq(token, slice_from_cstring("\"foo\"")));
 } END_TEST
 
 START_TEST(test_tokenizer_string_literal_escape_sequence) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring("\"foo\\n\" bar") };
-    StringSlice token = {};
     LineError err = {};
 
-    (void)tokenizer_next(&line, &token, &err);
+    StringSlice token = tokenizer_next(&line, &err);
     ck_assert(slice_eq(token, slice_from_cstring("\"foo\\n\"")));
 } END_TEST
 
@@ -50,60 +47,55 @@ START_TEST(test_tokenizer_string_literal_escape_sequence) {
 
 START_TEST(test_tokenizer_character_literal_unexpected_eol) {
     Tokenizer line = {};
-    StringSlice token = {};
     LineError err = {};
 
     line = (Tokenizer){ .line = slice_from_cstring("' foo") };
-    (void)tokenizer_next(&line, &token, &err);
+    (void)tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_EOL);
 
     line = (Tokenizer){ .line = slice_from_cstring("'\\' foo") };
-    (void)tokenizer_next(&line, &token, &err);
+    (void)tokenizer_next(&line, &err);
 
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_EOL);
 } END_TEST
 
 START_TEST(test_tokenizer_1_byte_character_literal) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring("'a' foo" ) };
-    StringSlice token = {};
     LineError err = {};
 
-    bool eol = tokenizer_next(&line, &token, &err);
+    StringSlice token = tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
-    ck_assert(eol == false);
+    ck_assert_uint_gt(token.length, 0);
     ck_assert(slice_eq(token, slice_from_cstring("'a'")));
 }
 
 START_TEST(test_tokenizer_multi_byte_character_literal) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring("'foo' bar" ) };
-    StringSlice token = {};
     LineError err = {};
 
-    bool eol = tokenizer_next(&line, &token, &err);
+    StringSlice token =  tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
-    ck_assert(eol == false);
+    ck_assert_uint_gt(token.length, 0);
     ck_assert(slice_eq(token, slice_from_cstring("'foo'")));
 }
 
 START_TEST(test_tokenizer_backslash_character_literal) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring("'\\\\' foo" ) };
-    StringSlice token = {};
     LineError err = {};
 
-    bool eol = tokenizer_next(&line, &token, &err);
+    StringSlice token =  tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
-    ck_assert(eol == false);
+    ck_assert_uint_gt(token.length, 0);
     ck_assert(slice_eq(token, slice_from_cstring("'\\\\'")));
 }
 
 START_TEST(test_tokenizer_single_quote_character_literal) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring("'\\'' foo" ) };
-    StringSlice token = {};
     LineError err = {};
 
-    bool eol = tokenizer_next(&line, &token, &err);
+    StringSlice token =  tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
-    ck_assert(eol == false);
+    ck_assert_uint_gt(token.length, 0);
     ck_assert(slice_eq(token, slice_from_cstring("'\\''")));
 }
 
@@ -111,89 +103,81 @@ START_TEST(test_tokenizer_single_quote_character_literal) {
 
 START_TEST(test_tokenizer_single_lt) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring("< <" ) };
-    StringSlice token = {};
     LineError err = {};
 
-    bool eol = tokenizer_next(&line, &token, &err);
+    StringSlice token = tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
-    ck_assert(eol == false);
+    ck_assert_uint_gt(token.length, 0);
     ck_assert(slice_eq(token, slice_from_cstring("<")));
 }
 
 START_TEST(test_tokenizer_single_gt) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring("> >" ) };
-    StringSlice token = {};
     LineError err = {};
 
-    bool eol = tokenizer_next(&line, &token, &err);
+    StringSlice token =  tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
-    ck_assert(eol == false);
+    ck_assert_uint_gt(token.length, 0);
     ck_assert(slice_eq(token, slice_from_cstring(">")));
 }
 
 START_TEST(test_tokenizer_lt_gt) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring("<>" ) };
-    StringSlice token = {};
     LineError err = {};
 
-    bool eol = tokenizer_next(&line, &token, &err);
+    StringSlice token = tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
-    ck_assert(eol == false);
+    ck_assert_uint_gt(token.length, 0);
     ck_assert(slice_eq(token, slice_from_cstring("<")));
 }
 
 START_TEST(test_tokenizer_gt_lt) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring("><" ) };
-    StringSlice token = {};
     LineError err = {};
 
-    bool eol = tokenizer_next(&line, &token, &err);
+    StringSlice token = tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
-    ck_assert(eol == false);
+    ck_assert_uint_gt(token.length, 0);
     ck_assert(slice_eq(token, slice_from_cstring(">")));
 }
 
 START_TEST(test_tokenizer_left_shift) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring("<< x" ) };
-    StringSlice token = {};
     LineError err = {};
 
-    bool eol = tokenizer_next(&line, &token, &err);
+    StringSlice token = tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
-    ck_assert(eol == false);
+    ck_assert_uint_gt(token.length, 0);
     ck_assert(slice_eq(token, slice_from_cstring("<<")));
 }
 
 START_TEST(test_tokenizer_triple_lt) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring("<<< x" ) };
-    StringSlice token = {};
     LineError err = {};
 
-    bool eol = tokenizer_next(&line, &token, &err);
+    StringSlice token = tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
-    ck_assert(eol == false);
+    ck_assert_uint_gt(token.length, 0);
     ck_assert(slice_eq(token, slice_from_cstring("<<")));
 }
 
 START_TEST(test_tokenizer_right_shift) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring(">> x" ) };
-    StringSlice token = {};
     LineError err = {};
 
-    bool eol = tokenizer_next(&line, &token, &err);
+    StringSlice token = tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
-    ck_assert(eol == false);
+    ck_assert_uint_gt(token.length, 0);
     ck_assert(slice_eq(token, slice_from_cstring(">>")));
 }
 
 START_TEST(test_tokenizer_triple_gt) {
     Tokenizer line = (Tokenizer){ .line = slice_from_cstring(">>> x" ) };
-    StringSlice token = {};
     LineError err = {};
 
-    bool eol = tokenizer_next(&line, &token, &err);
+    StringSlice token = tokenizer_next(&line, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
-    ck_assert(eol == false);
+    ck_assert_uint_gt(token.length, 0);
     ck_assert(slice_eq(token, slice_from_cstring(">>")));
 }
 

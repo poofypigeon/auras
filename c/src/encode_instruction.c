@@ -140,7 +140,6 @@ NOT_ENCODABLE:
 
 Instruction encode_m_type(Tokenizer* line, uint32_t flags, StringToIntMap* defines, LineError* err) {
     StringSlice token = {};
-    bool eol = false;
 
     uint32_t machine_word = M_OPCODE|flags;
 
@@ -153,9 +152,9 @@ Instruction encode_m_type(Tokenizer* line, uint32_t flags, StringToIntMap* defin
     machine_word |= expect_register(line, err) << M_RS1_BASE;
     if (err->error_tag) return (Instruction){};
   
-    eol = tokenizer_next(line, &token, err);
+    token = tokenizer_next(line, err);
     if (err->error_tag) return (Instruction){};
-    if (eol) {
+    if (token.length == 0) {
         *err = (LineError){
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){
@@ -184,9 +183,9 @@ Instruction encode_m_type(Tokenizer* line, uint32_t flags, StringToIntMap* defin
     // Save state of Tokenizer in case offset is immediate
     Tokenizer tokenizer_at_offset_start = *line;
 
-    eol = tokenizer_next(line, &token, err);
+    token = tokenizer_next(line, err);
     if (err->error_tag) return (Instruction){};
-    if (eol) {
+    if (token.length == 0) {
         *err = (LineError){
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){
@@ -204,9 +203,9 @@ Instruction encode_m_type(Tokenizer* line, uint32_t flags, StringToIntMap* defin
 
     if (token.bytes[0] == '-') {
         negative_offset = true;
-        eol = tokenizer_next(line, &token, err);
+        token = tokenizer_next(line, err);
         if (err->error_tag) return (Instruction){};
-        if (eol) {
+        if (token.length == 0) {
             *err = (LineError){
                 .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
                 .unexpected_token = (LineErrorUnexpectedToken){
@@ -244,9 +243,9 @@ Instruction encode_m_type(Tokenizer* line, uint32_t flags, StringToIntMap* defin
     machine_word |= (negative_offset) ? M_SB : 0;
     machine_word |= offset << M_OFFSET_BASE;
 
-    eol = tokenizer_next(line, &token, err);
+    token = tokenizer_next(line, err);
     if (err->error_tag) return (Instruction){};
-    if (eol) {
+    if (token.length == 0) {
         *err = (LineError){
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){
@@ -303,9 +302,9 @@ Instruction encode_m_type(Tokenizer* line, uint32_t flags, StringToIntMap* defin
     if (!expect_token(line, TOKEN_CLOSE_BRACKET, err)) return (Instruction){};
 
 WRITEBACK:
-    eol = tokenizer_next(line, &token, err);
+    token = tokenizer_next(line, err);
     if (err->error_tag) return (Instruction){};
-    if (eol) return (Instruction){ .machine_word = machine_word };
+    if (token.length == 0) return (Instruction){ .machine_word = machine_word };
 
     if (token.bytes[0] != '!') {
         *err = (LineError){
@@ -383,7 +382,6 @@ Instruction encode_lsr(Tokenizer* line, StringToIntMap* defines, LineError* err)
 
 Instruction encode_ssr(Tokenizer* line, StringToIntMap* defines, LineError* err) {
     StringSlice token = {};
-    bool eol = false;
 
     uint32_t machine_word = S_OPCODE|S_H|S_B|S_ST;
 
@@ -395,9 +393,9 @@ Instruction encode_ssr(Tokenizer* line, StringToIntMap* defines, LineError* err)
     Tokenizer tokenizer_at_operand_start = *line;
     size_t operand_start_column = tokenizer_next_token_start(line);
 
-    eol = tokenizer_next(line, &token, err);
+    token = tokenizer_next(line, err);
     if (err->error_tag) return (Instruction){};
-    if (eol) {
+    if (token.length == 0) {
         *err = (LineError){
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){
@@ -709,7 +707,6 @@ NOT_ENCODABLE:
 
 Instruction encode_d_type(Tokenizer* line, uint32_t flags, DVariant variant, StringToIntMap* defines, LineError* err) {
     StringSlice token = {};
-    bool eol = false;
 
     uint32_t machine_word = D_OPCODE|flags;
 
@@ -738,9 +735,9 @@ Instruction encode_d_type(Tokenizer* line, uint32_t flags, DVariant variant, Str
         // Save state of Tokenizer in case of immediate value
         Tokenizer tokenizer_at_offset_start = *line;
 
-        eol = tokenizer_next(line, &token, err);
+        token = tokenizer_next(line, err);
         if (err->error_tag) return (Instruction){};
-        if (eol) {
+        if (token.length == 0) {
             *err = (LineError){
                 .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
                 .unexpected_token = (LineErrorUnexpectedToken){
@@ -795,9 +792,9 @@ Instruction encode_d_type(Tokenizer* line, uint32_t flags, DVariant variant, Str
 
         machine_word |= imm << D_RS2_BASE;
 
-        eol = tokenizer_next(line, &token, err);
+        token = tokenizer_next(line, err);
         if (err->error_tag) return (Instruction){};
-        if (eol) {
+        if (token.length == 0) {
             return (Instruction){ .machine_word = machine_word };
         }
 
@@ -835,9 +832,9 @@ Instruction encode_d_type(Tokenizer* line, uint32_t flags, DVariant variant, Str
     // Save state of Tokenizer in case shift is immediate
     Tokenizer tokenizer_at_offset_start = *line;
 
-    eol = tokenizer_next(line, &token, err);
+    token = tokenizer_next(line, err);
     if (err->error_tag) return (Instruction){};
-    if (eol) {
+    if (token.length == 0) {
         *err = (LineError){
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){
@@ -930,16 +927,15 @@ typedef enum : uint32_t {
 
 Instruction encode_b_type(Tokenizer* line, uint32_t flags, LineError* err) {
     StringSlice token = {};
-    bool eol = false;
 
     uint32_t machine_word = B_OPCODE|flags;
 
     // Save state of Tokenizer in case offset is label
     Tokenizer tokenizer_at_offset_start = *line;
 
-    eol = tokenizer_next(line, &token, err);
+    token = tokenizer_next(line, err);
     if (err->error_tag) return (Instruction){};
-    if (eol) {
+    if (token.length == 0) {
         *err = (LineError){
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){
@@ -1070,8 +1066,8 @@ Instruction encode_ldapcr(Tokenizer* line, LineError* err) {
 
 Instruction encode_instruction(Tokenizer* line, StringToIntMap* defines, LineError* err) {
     StringSlice token = {};
-    bool eol = tokenizer_next(line, &token, err);
-    if (eol) return (Instruction){};
+    token = tokenizer_next(line, err);
+    if (token.length == 0) return (Instruction){};
 
     Mnemonic mnem = parse_mnemonic(token);
 
@@ -1157,9 +1153,9 @@ Instruction encode_instruction(Tokenizer* line, StringToIntMap* defines, LineErr
         default: return (Instruction){};
     }
 
-    eol = tokenizer_next(line, &token, err);
+    token = tokenizer_next(line, err);
     if (err->error_tag) return (Instruction){};
-    if (!eol) {
+    if (token.length > 0) {
         *err = (LineError){
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){

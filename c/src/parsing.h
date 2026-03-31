@@ -30,9 +30,9 @@ typedef struct {
     };
 } Operand;
 
-bool tokenizer_next(Tokenizer* tokenizer, StringSlice* token, LineError* err);
+StringSlice tokenizer_next(Tokenizer* tokenizer, LineError* err);
 size_t tokenizer_next_token_start(Tokenizer* tokenizer);
-void tokenizer_curr(Tokenizer* tokenizer, StringSlice* token);
+StringSlice tokenizer_curr(Tokenizer* tokenizer);
 void tokenizer_put_back(Tokenizer* tokenizer);
 
 Operand parse_operand(StringSlice token, LineError* err);
