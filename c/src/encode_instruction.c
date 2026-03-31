@@ -587,7 +587,8 @@ constexpr uint32_t D_D          = 1u << 14;
 constexpr uint32_t D_I          = 1u << 15;
 constexpr size_t   D_RS1_BASE   = 16;
 constexpr uint32_t D_FUNC_BASE  = 21;
-constexpr uint32_t D_SB         = 1u << 23;
+constexpr uint32_t D_SB_BASE    = 23;
+constexpr uint32_t D_SB         = 1u << D_SB_BASE;
 constexpr size_t   D_RD_BASE    = 24;
 constexpr uint32_t D_H          = 1u << 31;
 constexpr uint32_t D_OPCODE     = 0b010u << 29;
@@ -969,6 +970,101 @@ Instruction encode_b_type(Tokenizer* line, uint32_t flags, LineError* err) {
 }
 
 // ================================================================
+//  Encode Pseudo-Instructions
+// ================================================================
+
+Instruction encode_mvi32(Tokenizer* line, StringToIntMap* defines, LineError* err) {
+    uint32_t machine_word = I_OPCODE;
+    uint32_t second_machine_word = D_OPCODE|D_FUNC_ADD|D_I|D_A;
+
+    uint32_t rd = expect_register(line, err);
+    if (err->error_tag) return (Instruction){};
+    
+    if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
+    size_t expr_start_column = tokenizer_next_token_start(line);
+    
+    int64_t imm = parse_expression(line, err, defines);
+    if (err->error_tag) return (Instruction){};
+    
+    if (imm > (int64_t)UINT32_MAX || imm < (int64_t)INT32_MIN) {
+        *err = (LineError){
+            .error_tag = LINE_ERROR_NOT_ENCODABLE,
+            .not_encodable = (LineErrorNotEncodable){
+                .message = "immediate value exceeds 32-bit register width",
+                .start_column = expr_start_column,
+                .end_column = line->token_end,
+            },
+        };
+        return (Instruction){};
+    }
+    
+    machine_word |= rd << I_RD_BASE;
+    machine_word |= imm & 0x7FFFFF;
+    
+    second_machine_word |= rd << D_RD_BASE;
+    second_machine_word |= rd << D_RS1_BASE;
+    second_machine_word |= 23 << D_SHAMT_BASE;
+    second_machine_word |= ((imm >> 23) & 0xFF) << D_IMM_BASE;
+    second_machine_word |= ((imm >> 31) & 1) << D_SB_BASE;
+    
+    return (Instruction){
+        .machine_word = machine_word,
+        .second_machine_word = second_machine_word,
+    };
+}
+
+Instruction encode_lda(Tokenizer* line, LineError* err) {
+    uint32_t machine_word = I_OPCODE;
+    uint32_t second_machine_word = D_OPCODE|D_FUNC_ADD|D_I|D_A;
+
+    uint32_t rd = expect_register(line, err);
+    if (err->error_tag) return (Instruction){};
+    
+    if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
+    
+    StringSlice label = expect_label(line, err);
+    if (err->error_tag) return (Instruction){};
+    
+    machine_word |= rd << I_RD_BASE;
+    
+    second_machine_word |= rd << D_RD_BASE;
+    second_machine_word |= rd << D_RS1_BASE;
+    second_machine_word |= 23 << D_SHAMT_BASE;
+    
+    return (Instruction){
+        .machine_word = machine_word,
+        .second_machine_word = second_machine_word,
+        .label = label,
+    };
+}
+
+Instruction encode_ldapcr(Tokenizer* line, LineError* err) {
+    uint32_t machine_word = B_OPCODE|B_I|B_L|B_COND_AL;
+    uint32_t second_machine_word = D_OPCODE|D_FUNC_ADD|D_I|D_A;
+
+    uint32_t rd = expect_register(line, err);
+    if (err->error_tag) return (Instruction){};
+    
+    if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
+    
+    StringSlice label = expect_label(line, err);
+    if (err->error_tag) return (Instruction){};
+    
+    constexpr uint32_t offset = 0x4; // scrambled branch offset (+4)
+    machine_word |= offset;
+    
+    constexpr uint32_t lr = 1;
+    second_machine_word |= rd << D_RD_BASE;
+    second_machine_word |= lr << D_RS1_BASE;
+    
+    return (Instruction){
+        .machine_word = machine_word,
+        .second_machine_word = second_machine_word,
+        .label = label,
+    };
+}
+
+// ================================================================
 //  Encode Instruction
 // ================================================================
 
@@ -1054,6 +1150,10 @@ Instruction encode_instruction(Tokenizer* line, StringToIntMap* defines, LineErr
         case MN_BLLO: encoding = encode_b_type(line, B_COND_LO|B_L, err); break;
         case MN_BLHS: encoding = encode_b_type(line, B_COND_HS|B_L, err); break;
         case MN_BLMI: encoding = encode_b_type(line, B_COND_MI|B_L, err); break;
+        // Pseudo-Instructions
+        case MN_MVI32: encoding = encode_mvi32(line, defines, err); break;
+        case MN_LDA:   encoding = encode_lda(line, err); break;
+        case MN_LDAPCR: encoding = encode_ldapcr(line, err); break;
         default: return (Instruction){};
     }
 

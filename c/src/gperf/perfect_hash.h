@@ -27,6 +27,8 @@ typedef enum {
     // B-TYPE
     MN_B, MN_BEQ, MN_BNE, MN_BLT, MN_BGE, MN_BLO, MN_BHS, MN_BMI,
     MN_BL, MN_BLEQ, MN_BLNE, MN_BLLT, MN_BLGE, MN_BLLO, MN_BLHS, MN_BLMI,
+    // PSEUDO-INSTRUCTIONS
+    MN_MVI32, MN_LDA, MN_LDAPCR
 } Mnemonic;
 
 Mnemonic parse_mnemonic(StringSlice token);

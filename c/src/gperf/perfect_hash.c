@@ -43,12 +43,12 @@ struct MnemonicToken {
     Mnemonic mnemonic;
 };
 
-#define TOTAL_KEYWORDS 61
+#define TOTAL_KEYWORDS 64
 #define MIN_WORD_LENGTH 1
 #define MAX_WORD_LENGTH 7
 #define MIN_HASH_VALUE 1
-#define MAX_HASH_VALUE 129
-/* maximum key range = 129, duplicates = 0 */
+#define MAX_HASH_VALUE 234
+/* maximum key range = 234, duplicates = 0 */
 
 #ifdef __GNUC__
 __inline
@@ -62,19 +62,19 @@ hash (register const char *str, register size_t len)
 {
   static unsigned char asso_values[] =
     {
-      130, 130, 130, 130, 130, 130, 130, 130, 130, 130,
-      130, 130, 130, 130, 130, 130, 130, 130, 130, 130,
-      130, 130, 130, 130, 130, 130, 130, 130, 130, 130,
-      130, 130, 130, 130, 130, 130, 130, 130, 130, 130,
-      130, 130, 130, 130, 130, 130, 130, 130, 130, 130,
-      130, 130, 130, 130, 130, 130, 130, 130, 130, 130,
-      130, 130, 130, 130, 130, 130, 130, 130, 130, 130,
-      130, 130, 130, 130, 130, 130, 130, 130, 130, 130,
-      130, 130, 130, 130, 130, 130, 130, 130, 130, 130,
-      130, 130, 130, 130, 130, 130, 130,  35,   0,   0,
-        5,  15,  41,   0,   6,  15, 130,   0,   0,  10,
-       50,  20,  25,  45,  50,   5,  30,   2,  61,  45,
-       35, 130,  35, 130, 130, 130, 130, 130, 130
+      235, 235, 235, 235, 235, 235, 235, 235, 235, 235,
+      235, 235, 235, 235, 235, 235, 235, 235, 235, 235,
+      235, 235, 235, 235, 235, 235, 235, 235, 235, 235,
+      235, 235, 235, 235, 235, 235, 235, 235, 235, 235,
+      235, 235, 235, 235, 235, 235, 235, 235, 235, 235,
+      235,   0, 235, 235, 235, 235, 235, 235, 235, 235,
+      235, 235, 235, 235, 235, 235, 235, 235, 235, 235,
+      235, 235, 235, 235, 235, 235, 235, 235, 235, 235,
+      235, 235, 235, 235, 235, 235, 235, 235, 235, 235,
+      235, 235, 235, 235, 235, 235, 235,  25,   0,   5,
+       30,  25,  15,  15,  90,  60, 235,   0,   0,   0,
+        0,  20,  65, 105,  70,   5,  30,   2,  80,  65,
+       30, 235,  35, 235, 235, 235, 235, 235, 235
     };
   register unsigned int hval = len;
 
@@ -123,32 +123,78 @@ in_word_set (register const char *str, register size_t len)
       {""},
 #line 59 "src/gperf/perfect_hash.gperf"
       {"b", MN_B},
+#line 67 "src/gperf/perfect_hash.gperf"
+      {"bl", MN_BL},
+      {""}, {""}, {""}, {""},
 #line 21 "src/gperf/perfect_hash.gperf"
       {"lb", MN_LB},
-      {""}, {""},
+#line 53 "src/gperf/perfect_hash.gperf"
+      {"sll", MN_SLL},
+#line 56 "src/gperf/perfect_hash.gperf"
+      {"sllk", MN_SLLK},
 #line 23 "src/gperf/perfect_hash.gperf"
       {"lbu", MN_LBU},
       {""},
 #line 26 "src/gperf/perfect_hash.gperf"
       {"sb", MN_SB},
-#line 38 "src/gperf/perfect_hash.gperf"
-      {"sbc", MN_SBC},
-#line 45 "src/gperf/perfect_hash.gperf"
-      {"sbck", MN_SBCK},
-      {""}, {""},
-#line 67 "src/gperf/perfect_hash.gperf"
-      {"bl", MN_BL},
 #line 54 "src/gperf/perfect_hash.gperf"
       {"srl", MN_SRL},
 #line 57 "src/gperf/perfect_hash.gperf"
       {"srlk", MN_SRLK},
+      {""}, {""}, {""},
+#line 38 "src/gperf/perfect_hash.gperf"
+      {"sbc", MN_SBC},
+#line 45 "src/gperf/perfect_hash.gperf"
+      {"sbck", MN_SBCK},
+      {""}, {""}, {""},
+#line 64 "src/gperf/perfect_hash.gperf"
+      {"blo", MN_BLO},
+#line 72 "src/gperf/perfect_hash.gperf"
+      {"bllo", MN_BLLO},
+      {""}, {""},
+#line 40 "src/gperf/perfect_hash.gperf"
+      {"or", MN_OR},
+#line 47 "src/gperf/perfect_hash.gperf"
+      {"ork", MN_ORK},
+#line 69 "src/gperf/perfect_hash.gperf"
+      {"blne", MN_BLNE},
+      {""}, {""},
+#line 20 "src/gperf/perfect_hash.gperf"
+      {"lw", MN_LW},
+#line 62 "src/gperf/perfect_hash.gperf"
+      {"blt", MN_BLT},
+#line 70 "src/gperf/perfect_hash.gperf"
+      {"bllt", MN_BLLT},
+      {""}, {""},
+#line 25 "src/gperf/perfect_hash.gperf"
+      {"sw", MN_SW},
+#line 55 "src/gperf/perfect_hash.gperf"
+      {"sra", MN_SRA},
+#line 58 "src/gperf/perfect_hash.gperf"
+      {"srak", MN_SRAK},
+      {""}, {""}, {""}, {""},
+#line 71 "src/gperf/perfect_hash.gperf"
+      {"blge", MN_BLGE},
+      {""}, {""}, {""},
+#line 61 "src/gperf/perfect_hash.gperf"
+      {"bne", MN_BNE},
+      {""}, {""}, {""}, {""},
+#line 76 "src/gperf/perfect_hash.gperf"
+      {"lda", MN_LDA},
+      {""}, {""}, {""},
+#line 31 "src/gperf/perfect_hash.gperf"
+      {"syscall", MN_SYSCALL},
+#line 36 "src/gperf/perfect_hash.gperf"
+      {"adc", MN_ADC},
+#line 43 "src/gperf/perfect_hash.gperf"
+      {"adck", MN_ADCK},
       {""}, {""},
 #line 22 "src/gperf/perfect_hash.gperf"
       {"lh", MN_LH},
-#line 53 "src/gperf/perfect_hash.gperf"
-      {"sll", MN_SLL},
-#line 56 "src/gperf/perfect_hash.gperf"
-      {"sllk", MN_SLLK},
+#line 66 "src/gperf/perfect_hash.gperf"
+      {"bmi", MN_BMI},
+#line 74 "src/gperf/perfect_hash.gperf"
+      {"blmi", MN_BLMI},
 #line 24 "src/gperf/perfect_hash.gperf"
       {"lhu", MN_LHU},
       {""},
@@ -156,116 +202,94 @@ in_word_set (register const char *str, register size_t len)
       {"sh", MN_SH},
 #line 65 "src/gperf/perfect_hash.gperf"
       {"bhs", MN_BHS},
-#line 63 "src/gperf/perfect_hash.gperf"
-      {"bge", MN_BGE},
-#line 73 "src/gperf/perfect_hash.gperf"
-      {"blhs", MN_BLHS},
-      {""},
-#line 40 "src/gperf/perfect_hash.gperf"
-      {"or", MN_OR},
-#line 47 "src/gperf/perfect_hash.gperf"
-      {"ork", MN_ORK},
-#line 71 "src/gperf/perfect_hash.gperf"
-      {"blge", MN_BLGE},
-      {""}, {""}, {""},
-#line 64 "src/gperf/perfect_hash.gperf"
-      {"blo", MN_BLO},
-#line 72 "src/gperf/perfect_hash.gperf"
-      {"bllo", MN_BLLO},
-      {""}, {""},
-#line 20 "src/gperf/perfect_hash.gperf"
-      {"lw", MN_LW},
-#line 61 "src/gperf/perfect_hash.gperf"
-      {"bne", MN_BNE},
-#line 74 "src/gperf/perfect_hash.gperf"
-      {"blmi", MN_BLMI},
-      {""}, {""},
-#line 25 "src/gperf/perfect_hash.gperf"
-      {"sw", MN_SW},
-#line 62 "src/gperf/perfect_hash.gperf"
-      {"blt", MN_BLT},
-#line 70 "src/gperf/perfect_hash.gperf"
-      {"bllt", MN_BLLT},
-      {""}, {""}, {""},
-#line 55 "src/gperf/perfect_hash.gperf"
-      {"sra", MN_SRA},
-#line 58 "src/gperf/perfect_hash.gperf"
-      {"srak", MN_SRAK},
-      {""},
-#line 16 "src/gperf/perfect_hash.gperf"
-      {"half", MN_HALF},
-#line 31 "src/gperf/perfect_hash.gperf"
-      {"syscall", MN_SYSCALL},
-#line 36 "src/gperf/perfect_hash.gperf"
-      {"adc", MN_ADC},
-#line 43 "src/gperf/perfect_hash.gperf"
-      {"adck", MN_ADCK},
+      {""}, {""}, {""}, {""},
+#line 51 "src/gperf/perfect_hash.gperf"
+      {"cmp", MN_CMP},
+      {""}, {""}, {""}, {""},
+#line 39 "src/gperf/perfect_hash.gperf"
+      {"and", MN_AND},
+#line 46 "src/gperf/perfect_hash.gperf"
+      {"andk", MN_ANDK},
       {""}, {""}, {""},
 #line 35 "src/gperf/perfect_hash.gperf"
       {"add", MN_ADD},
 #line 42 "src/gperf/perfect_hash.gperf"
       {"addk", MN_ADDK},
       {""}, {""}, {""},
-#line 39 "src/gperf/perfect_hash.gperf"
-      {"and", MN_AND},
-#line 46 "src/gperf/perfect_hash.gperf"
-      {"andk", MN_ANDK},
-#line 19 "src/gperf/perfect_hash.gperf"
-      {"align", MN_ALIGN},
-      {""}, {""},
-#line 66 "src/gperf/perfect_hash.gperf"
-      {"bmi", MN_BMI},
 #line 37 "src/gperf/perfect_hash.gperf"
       {"sub", MN_SUB},
 #line 44 "src/gperf/perfect_hash.gperf"
       {"subk", MN_SUBK},
-      {""}, {""},
-#line 28 "src/gperf/perfect_hash.gperf"
-      {"mvi", MN_MVI},
-#line 68 "src/gperf/perfect_hash.gperf"
-      {"bleq", MN_BLEQ},
-      {""}, {""}, {""},
-#line 51 "src/gperf/perfect_hash.gperf"
-      {"cmp", MN_CMP},
-#line 69 "src/gperf/perfect_hash.gperf"
-      {"blne", MN_BLNE},
-      {""}, {""}, {""},
-#line 29 "src/gperf/perfect_hash.gperf"
-      {"lsr", MN_LSR},
-#line 17 "src/gperf/perfect_hash.gperf"
-      {"byte", MN_BYTE},
-#line 18 "src/gperf/perfect_hash.gperf"
-      {"ascii", MN_ASCII},
-      {""}, {""},
-#line 30 "src/gperf/perfect_hash.gperf"
-      {"ssr", MN_SSR},
-#line 60 "src/gperf/perfect_hash.gperf"
-      {"beq", MN_BEQ},
       {""}, {""}, {""},
 #line 49 "src/gperf/perfect_hash.gperf"
       {"tst", MN_TST},
-      {""}, {""}, {""}, {""},
-#line 52 "src/gperf/perfect_hash.gperf"
-      {"cpn", MN_CPN},
-#line 33 "src/gperf/perfect_hash.gperf"
-      {"mov", MN_MOV},
+#line 17 "src/gperf/perfect_hash.gperf"
+      {"byte", MN_BYTE},
       {""}, {""}, {""},
-#line 32 "src/gperf/perfect_hash.gperf"
-      {"nop", MN_NOP},
-      {""}, {""}, {""}, {""},
 #line 34 "src/gperf/perfect_hash.gperf"
       {"not", MN_NOT},
+#line 73 "src/gperf/perfect_hash.gperf"
+      {"blhs", MN_BLHS},
+      {""}, {""}, {""},
+#line 29 "src/gperf/perfect_hash.gperf"
+      {"lsr", MN_LSR},
+      {""},
+#line 19 "src/gperf/perfect_hash.gperf"
+      {"align", MN_ALIGN},
+      {""}, {""},
+#line 30 "src/gperf/perfect_hash.gperf"
+      {"ssr", MN_SSR},
+#line 16 "src/gperf/perfect_hash.gperf"
+      {"half", MN_HALF},
+      {""}, {""}, {""},
+#line 52 "src/gperf/perfect_hash.gperf"
+      {"cpn", MN_CPN},
+      {""}, {""}, {""}, {""},
+#line 63 "src/gperf/perfect_hash.gperf"
+      {"bge", MN_BGE},
+      {""}, {""},
+#line 77 "src/gperf/perfect_hash.gperf"
+      {"ldapcr", MN_LDAPCR},
+      {""},
+#line 60 "src/gperf/perfect_hash.gperf"
+      {"beq", MN_BEQ},
+      {""},
+#line 18 "src/gperf/perfect_hash.gperf"
+      {"ascii", MN_ASCII},
+      {""}, {""},
+#line 28 "src/gperf/perfect_hash.gperf"
+      {"mvi", MN_MVI},
+      {""},
+#line 75 "src/gperf/perfect_hash.gperf"
+      {"mvi32", MN_MVI32},
+      {""}, {""},
+#line 32 "src/gperf/perfect_hash.gperf"
+      {"nop", MN_NOP},
+#line 68 "src/gperf/perfect_hash.gperf"
+      {"bleq", MN_BLEQ},
+      {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+      {""}, {""}, {""}, {""},
+#line 33 "src/gperf/perfect_hash.gperf"
+      {"mov", MN_MOV},
+      {""}, {""}, {""}, {""},
+#line 50 "src/gperf/perfect_hash.gperf"
+      {"teq", MN_TEQ},
 #line 14 "src/gperf/perfect_hash.gperf"
       {"addr", MN_ADDR},
-      {""}, {""}, {""},
+      {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+      {""}, {""}, {""}, {""},
 #line 41 "src/gperf/perfect_hash.gperf"
       {"xor", MN_XOR},
 #line 48 "src/gperf/perfect_hash.gperf"
       {"xork", MN_XORK},
-      {""}, {""}, {""}, {""},
-#line 50 "src/gperf/perfect_hash.gperf"
-      {"teq", MN_TEQ},
       {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+      {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+      {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+      {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+      {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+      {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+      {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+      {""},
 #line 15 "src/gperf/perfect_hash.gperf"
       {"word", MN_WORD}
     };
@@ -287,7 +311,7 @@ in_word_set (register const char *str, register size_t len)
     }
   return (struct MnemonicToken *) 0;
 }
-#line 75 "src/gperf/perfect_hash.gperf"
+#line 78 "src/gperf/perfect_hash.gperf"
 
 Mnemonic parse_mnemonic(StringSlice token) {
     struct MnemonicToken* res = in_word_set(token.bytes, token.length);

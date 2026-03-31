@@ -72,6 +72,9 @@ blge, MN_BLGE
 bllo, MN_BLLO
 blhs, MN_BLHS
 blmi, MN_BLMI
+mvi32, MN_MVI32
+lda, MN_LDA
+ldapcr, MN_LDAPCR
 %%
 Mnemonic parse_mnemonic(StringSlice token) {
     struct MnemonicToken* res = in_word_set(token.bytes, token.length);

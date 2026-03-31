@@ -36,6 +36,17 @@ static bool check_branch_label(char* line_raw, uint32_t expected_flags, char* ex
     return slice_eq(instr.label, slice_from_cstring(expected_label));
 }
 
+static bool check_two_instructions(char* line_raw, uint32_t expected_first, uint32_t expected_second) {
+    Tokenizer line = (Tokenizer){ .line = slice_from_cstring(line_raw) };
+    StringToIntMap defines = {};
+    LineError err = {};
+    Instruction instr = encode_instruction(&line, &defines, &err);
+    
+    if (err.error_tag) return false;
+    return (instr.machine_word == expected_first) && (instr.second_machine_word == expected_second);
+}
+
+
 // ================================================================
 //  M-Type
 // ================================================================
@@ -816,6 +827,83 @@ Suite* b_type_suite(void) {
 }
 
 // ================================================================
+//  Pseudo-Instructions
+// ================================================================
+
+START_TEST(test_pseudo_errors_missing_operands) {
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    mvi32"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    mvi32 x5"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    lda"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    lda x5"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    ldapcr"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    ldapcr x5"));
+} END_TEST
+    
+START_TEST(test_pseudo_errors_exceeds_register_width) {
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    mvi32 x5, 0x1_FFFF_FFFF"));
+    ck_assert(produces_line_error(LINE_ERROR_NOT_ENCODABLE, "    mvi32 x5, -0x1_FFFF_FFFF"));
+} END_TEST
+
+START_TEST(test_mvi32_simple) {
+    ck_assert(check_two_instructions("    mvi32 x5, 0x12345678", 0x25345678, 0x4505B724));
+} END_TEST
+
+START_TEST(test_mvi32_zero) {
+    ck_assert(check_two_instructions("    mvi32 x0, 0", 0x20000000, 0x4000B700));
+} END_TEST
+
+START_TEST(test_mvi32_all_ones) {
+    ck_assert(check_two_instructions("    mvi32 x31, 0xFFFFFFFF", 0x3F7FFFFF, 0x5F9FB7FF));
+} END_TEST
+
+START_TEST(test_mvi32_negative) {
+    ck_assert(check_two_instructions("    mvi32 x10, -1", 0x2A7FFFFF, 0x4A8AB7FF));
+} END_TEST
+
+START_TEST(test_lda_label) {
+    Tokenizer line = (Tokenizer){ .line = slice_from_cstring("    lda x15, my_label") };
+    StringToIntMap defines = {};
+    LineError err = {};
+    Instruction instr = encode_instruction(&line, &defines, &err);
+    ck_assert(!err.error_tag);
+    ck_assert_uint_eq(instr.machine_word, 0x2F000000);
+    ck_assert_uint_eq(instr.second_machine_word, 0x4F0FB700);
+    ck_assert(slice_eq(instr.label, slice_from_cstring("my_label")));
+} END_TEST
+
+START_TEST(test_raddr_label) {
+    Tokenizer line = (Tokenizer){ .line = slice_from_cstring("    ldapcr x20, func_label") };
+    StringToIntMap defines = {};
+    LineError err = {};
+    Instruction instr = encode_instruction(&line, &defines, &err);
+    ck_assert(!err.error_tag);
+    ck_assert_uint_eq(instr.machine_word, 0x9F000004);
+    ck_assert_uint_eq(instr.second_machine_word, 0x5401A000);
+    ck_assert(slice_eq(instr.label, slice_from_cstring("func_label")));
+} END_TEST
+
+Suite* pseudo_suite(void) {
+    Suite* suite = suite_create("Pseudo-Instructions");
+
+    TCase* tc_errors = tcase_create("errors");
+    tcase_add_test(tc_errors, test_pseudo_errors_missing_operands);
+    tcase_add_test(tc_errors, test_pseudo_errors_exceeds_register_width);
+
+    TCase* tc_encodings = tcase_create("encodings");
+    tcase_add_test(tc_encodings, test_mvi32_simple);
+    tcase_add_test(tc_encodings, test_mvi32_zero);
+    tcase_add_test(tc_encodings, test_mvi32_all_ones);
+    tcase_add_test(tc_encodings, test_mvi32_negative);
+    tcase_add_test(tc_encodings, test_lda_label);
+    tcase_add_test(tc_encodings, test_raddr_label);
+
+    suite_add_tcase(suite, tc_encodings);
+    suite_add_tcase(suite, tc_errors);
+
+    return suite;
+}
+
+// ================================================================
 //  main
 // ================================================================
 
@@ -825,6 +913,7 @@ int main(void) {
     srunner_add_suite(suite_runner, s_type_suite());
     srunner_add_suite(suite_runner, d_type_suite());
     srunner_add_suite(suite_runner, b_type_suite());
+    srunner_add_suite(suite_runner, pseudo_suite());
 
     srunner_run_all(suite_runner, CK_NORMAL);
     int number_failed = srunner_ntests_failed(suite_runner);
