@@ -25,6 +25,17 @@ static uint32_t machine_word(char* line_raw) {
     return encode_instruction(&line, &defines, &err).machine_word;
 }
 
+static bool check_branch_label(char* line_raw, uint32_t expected_flags, char* expected_label) {
+    Tokenizer line = (Tokenizer){ .line = slice_from_cstring(line_raw) };
+    StringToIntMap defines = {};
+    LineError err = {};
+
+    Instruction instr = encode_instruction(&line, &defines, &err);
+    if (err.error_tag) return false;
+    if (instr.machine_word != expected_flags) return false;
+    return slice_eq(instr.label, slice_from_cstring(expected_label));
+}
+
 // ================================================================
 //  M-Type
 // ================================================================
@@ -731,17 +742,92 @@ Suite* d_type_suite(void) {
 }
 
 // ================================================================
+//  B-Type
+// ================================================================
+
+START_TEST(test_b_type_missing_target) {
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    b"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    beq"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_TOKEN, "    bl"));
+} END_TEST
+    
+START_TEST(test_b_type_invalid_token) {
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_EOL, "    b'invalid"));
+    ck_assert(produces_line_error(LINE_ERROR_UNEXPECTED_EOL, "    beq\"invalid"));
+} END_TEST
+
+START_TEST(test_b_type_register_absolute) {
+    ck_assert_uint_eq(machine_word("    b x5"),    0x87050000);
+    ck_assert_uint_eq(machine_word("    beq x10"), 0x800A0000);
+    ck_assert_uint_eq(machine_word("    bne x15"), 0x810F0000);
+    ck_assert_uint_eq(machine_word("    blt x20"), 0x82140000);
+    ck_assert_uint_eq(machine_word("    bge x25"), 0x83190000);
+    ck_assert_uint_eq(machine_word("    blo x30"), 0x841E0000);
+    ck_assert_uint_eq(machine_word("    bhs x31"), 0x851F0000);
+    ck_assert_uint_eq(machine_word("    bmi x0"),  0x86000000);
+} END_TEST
+
+START_TEST(test_b_type_register_absolute_with_link) {
+    ck_assert_uint_eq(machine_word("    bl x5"),    0x8F050000);
+    ck_assert_uint_eq(machine_word("    bleq x10"), 0x880A0000);
+    ck_assert_uint_eq(machine_word("    blne x15"), 0x890F0000);
+    ck_assert_uint_eq(machine_word("    bllt x20"), 0x8A140000);
+    ck_assert_uint_eq(machine_word("    blge x25"), 0x8B190000);
+    ck_assert_uint_eq(machine_word("    bllo x30"), 0x8C1E0000);
+    ck_assert_uint_eq(machine_word("    blhs x31"), 0x8D1F0000);
+    ck_assert_uint_eq(machine_word("    blmi x0"),  0x8E000000);
+} END_TEST
+
+START_TEST(test_b_type_pc_relative_labels) {
+    ck_assert(check_branch_label("    b my_label",                 0x97000000, "my_label"));
+    ck_assert(check_branch_label("    beq loop_start",             0x90000000, "loop_start"));
+    ck_assert(check_branch_label("    bne exit",                   0x91000000, "exit"));
+    ck_assert(check_branch_label("    blt negative",               0x92000000, "negative"));
+    ck_assert(check_branch_label("    bge positive",               0x93000000, "positive"));
+    ck_assert(check_branch_label("    blo underflow",              0x94000000, "underflow"));
+    ck_assert(check_branch_label("    bhs overflow",               0x95000000, "overflow"));
+    ck_assert(check_branch_label("    bmi sign_bit",               0x96000000, "sign_bit"));
+    ck_assert(check_branch_label("    bl function",                0x9F000000, "function"));
+    ck_assert(check_branch_label("    bleq equal_handler",         0x98000000, "equal_handler"));
+    ck_assert(check_branch_label("    blne not_equal_handler",     0x99000000, "not_equal_handler"));
+    ck_assert(check_branch_label("    bllt less_than_handler",     0x9A000000, "less_than_handler"));
+    ck_assert(check_branch_label("    blge greater_equal_handler", 0x9B000000, "greater_equal_handler"));
+    ck_assert(check_branch_label("    bllo lower_handler",         0x9C000000, "lower_handler"));
+    ck_assert(check_branch_label("    blhs higher_same_handler",   0x9D000000, "higher_same_handler"));
+    ck_assert(check_branch_label("    blmi minus_handler",         0x9E000000, "minus_handler"));
+} END_TEST
+
+Suite* b_type_suite(void) {
+    Suite* suite = suite_create("B-Type");
+
+    TCase* tc_errors = tcase_create("errors");
+    tcase_add_test(tc_errors, test_b_type_missing_target);
+    tcase_add_test(tc_errors, test_b_type_invalid_token);
+
+    TCase* tc_encodings = tcase_create("encodings");
+    tcase_add_test(tc_encodings, test_b_type_register_absolute);
+    tcase_add_test(tc_encodings, test_b_type_register_absolute_with_link);
+    tcase_add_test(tc_encodings, test_b_type_pc_relative_labels);
+
+    suite_add_tcase(suite, tc_encodings);
+    suite_add_tcase(suite, tc_errors);
+
+    return suite;
+}
+
+// ================================================================
 //  main
 // ================================================================
 
- int main(void) {
+int main(void) {
     SRunner* suite_runner = srunner_create(m_type_suite());
     srunner_add_suite(suite_runner, i_type_suite());
     srunner_add_suite(suite_runner, s_type_suite());
     srunner_add_suite(suite_runner, d_type_suite());
+    srunner_add_suite(suite_runner, b_type_suite());
 
     srunner_run_all(suite_runner, CK_NORMAL);
     int number_failed = srunner_ntests_failed(suite_runner);
     srunner_free(suite_runner);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
- }
+}

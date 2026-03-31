@@ -370,20 +370,18 @@ bool expect_token(Tokenizer* line, StringSlice expected_token, LineError* err) {
     return true;
 }
 
-StringSlice expect_label(Tokenizer* line, LineError* err, bool allow_eol) {
+StringSlice expect_label(Tokenizer* line, LineError* err) {
     StringSlice token = {};
     bool eol = tokenizer_next(line, &token, err);
     if (err->error_tag) return (StringSlice){};
     if (eol) {
-        if (!allow_eol) {
-            *err = (LineError){
-                .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
-                .unexpected_token = (LineErrorUnexpectedToken){
-                    .column = line->token_start,
-                    .expected = "label",
-                },
-            };
-        }
+        *err = (LineError){
+            .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
+            .unexpected_token = (LineErrorUnexpectedToken){
+                .column = line->token_start,
+                .expected = "label",
+            },
+        };
         return (StringSlice){};
     }
     if (!is_symbol_start_char(token.bytes[0])) {

@@ -56,6 +56,22 @@ sra, MN_SRA
 sllk, MN_SLLK
 srlk, MN_SRLK
 srak, MN_SRAK
+b, MN_B
+beq, MN_BEQ
+bne, MN_BNE
+blt, MN_BLT
+bge, MN_BGE
+blo, MN_BLO
+bhs, MN_BHS
+bmi, MN_BMI
+bl, MN_BL
+bleq, MN_BLEQ
+blne, MN_BLNE
+bllt, MN_BLLT
+blge, MN_BLGE
+bllo, MN_BLLO
+blhs, MN_BLHS
+blmi, MN_BLMI
 %%
 Mnemonic parse_mnemonic(StringSlice token) {
     struct MnemonicToken* res = in_word_set(token.bytes, token.length);

@@ -30,9 +30,6 @@ typedef struct {
     };
 } Operand;
 
-#define ALLOW_EOL    (true)
-#define NO_ALLOW_EOL (false)
-
 bool tokenizer_next(Tokenizer* tokenizer, StringSlice* token, LineError* err);
 size_t tokenizer_next_token_start(Tokenizer* tokenizer);
 void tokenizer_curr(Tokenizer* tokenizer, StringSlice* token);
@@ -44,6 +41,6 @@ int64_t parse_expression(Tokenizer* line, LineError* err, StringToIntMap* def_ma
 
 uint64_t expect_register(Tokenizer* tokenizer, LineError* err);
 bool expect_token(Tokenizer* line, StringSlice expected_token, LineError* err);
-StringSlice expect_label(Tokenizer* tokenizer, LineError* err, bool allow_eol);
+StringSlice expect_label(Tokenizer* tokenizer, LineError* err);
 
 char* found_token_string(StringSlice token);

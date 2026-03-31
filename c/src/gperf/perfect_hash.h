@@ -24,6 +24,9 @@ typedef enum {
     MN_SLL, MN_SRL, MN_SRA, MN_SLLK,
     // D-TYPE invalid variants (recognized for better error messages)
     MN_SRLK, MN_SRAK,
+    // B-TYPE
+    MN_B, MN_BEQ, MN_BNE, MN_BLT, MN_BGE, MN_BLO, MN_BHS, MN_BMI,
+    MN_BL, MN_BLEQ, MN_BLNE, MN_BLLT, MN_BLGE, MN_BLLO, MN_BLHS, MN_BLMI,
 } Mnemonic;
 
 Mnemonic parse_mnemonic(StringSlice token);

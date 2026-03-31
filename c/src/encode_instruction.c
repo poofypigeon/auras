@@ -907,6 +907,68 @@ Instruction encode_d_type(Tokenizer* line, uint32_t flags, DVariant variant, Str
 }
 
 // ================================================================
+//  Encode B-Type
+// ================================================================
+
+constexpr size_t   B_RS1_BASE  = 16;
+constexpr uint32_t B_COND_BASE = 24;
+constexpr uint32_t B_L         = 1u << 27;
+constexpr uint32_t B_I         = 1u << 28;
+constexpr uint32_t B_OPCODE    = 0b100u << 29;
+
+typedef enum : uint32_t {
+    B_COND_EQ = 0b000 << B_COND_BASE,
+    B_COND_NE = 0b001 << B_COND_BASE,
+    B_COND_LT = 0b010 << B_COND_BASE,
+    B_COND_GE = 0b011 << B_COND_BASE,
+    B_COND_LO = 0b100 << B_COND_BASE,
+    B_COND_HS = 0b101 << B_COND_BASE,
+    B_COND_MI = 0b110 << B_COND_BASE,
+    B_COND_AL = 0b111 << B_COND_BASE,
+} BCond;
+
+Instruction encode_b_type(Tokenizer* line, uint32_t flags, LineError* err) {
+    StringSlice token = {};
+    bool eol = false;
+
+    uint32_t machine_word = B_OPCODE|flags;
+
+    // Save state of Tokenizer in case offset is label
+    Tokenizer tokenizer_at_offset_start = *line;
+
+    eol = tokenizer_next(line, &token, err);
+    if (err->error_tag) return (Instruction){};
+    if (eol) {
+        *err = (LineError){
+            .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
+            .unexpected_token = (LineErrorUnexpectedToken){
+                .column = line->token_start,
+                .expected = "register or label",
+            },
+        };
+        return (Instruction){};
+    }
+
+    int64_t rs1 = 0;
+    if (!parse_register(token, (uint64_t*)&rs1)) {
+        *line = tokenizer_at_offset_start;
+
+        StringSlice label = expect_label(line, err);
+        if (err->error_tag) return (Instruction){};
+
+        machine_word |= B_I;
+
+        return (Instruction){
+            .machine_word = machine_word,
+            .label = label,
+        };
+    }
+
+    machine_word |= rs1 << B_RS1_BASE;
+    return (Instruction){ .machine_word = machine_word };
+}
+
+// ================================================================
 //  Encode Instruction
 // ================================================================
 
@@ -975,6 +1037,23 @@ Instruction encode_instruction(Tokenizer* line, StringToIntMap* defines, LineErr
                 },
             };
             return (Instruction){};
+        // B-Type
+        case MN_B:    encoding = encode_b_type(line, B_COND_AL,     err); break;
+        case MN_BEQ:  encoding = encode_b_type(line, B_COND_EQ,     err); break;
+        case MN_BNE:  encoding = encode_b_type(line, B_COND_NE,     err); break;
+        case MN_BLT:  encoding = encode_b_type(line, B_COND_LT,     err); break;
+        case MN_BGE:  encoding = encode_b_type(line, B_COND_GE,     err); break;
+        case MN_BLO:  encoding = encode_b_type(line, B_COND_LO,     err); break;
+        case MN_BHS:  encoding = encode_b_type(line, B_COND_HS,     err); break;
+        case MN_BMI:  encoding = encode_b_type(line, B_COND_MI,     err); break;
+        case MN_BL:   encoding = encode_b_type(line, B_COND_AL|B_L, err); break;
+        case MN_BLEQ: encoding = encode_b_type(line, B_COND_EQ|B_L, err); break;
+        case MN_BLNE: encoding = encode_b_type(line, B_COND_NE|B_L, err); break;
+        case MN_BLLT: encoding = encode_b_type(line, B_COND_LT|B_L, err); break;
+        case MN_BLGE: encoding = encode_b_type(line, B_COND_GE|B_L, err); break;
+        case MN_BLLO: encoding = encode_b_type(line, B_COND_LO|B_L, err); break;
+        case MN_BLHS: encoding = encode_b_type(line, B_COND_HS|B_L, err); break;
+        case MN_BLMI: encoding = encode_b_type(line, B_COND_MI|B_L, err); break;
         default: return (Instruction){};
     }
 
