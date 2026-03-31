@@ -21,8 +21,14 @@ constexpr size_t  UINT32_BITS = sizeof(uint32_t) * CHAR_BIT;
 constexpr size_t  INT32_BITS  = sizeof(int32_t)  * CHAR_BIT;
 
 // ================================================================
-//  Encode M-Type
+//  Encode M-Type — Memory Load/Store (opcode 000)
 // ================================================================
+//
+// Syntax: <mnemonic> <rd>, [<rs1>, <offset/rs2> (sll <shamt>)]
+// 
+// Memory operations with indexed/offset addressing modes:
+//   - Load:  lw, lh, lb, lhu, lbu
+//   - Store: sw, sh, sb
 
 constexpr size_t   M_OFFSET_BASE = 0;
 constexpr size_t   M_OFFSET_BITS = 8;
@@ -322,8 +328,16 @@ WRITEBACK:
 }
 
 // ================================================================
-//  Encode S-Type
+//  Encode S-Type — System/CSR (opcode 000)
 // ================================================================
+//
+// System register operations and system calls:
+//   - lsr <rd>, <rsys>  Load system register
+//   - ssr <rsys>, <rs1> Store system register  
+//   - syscall <imm8>    System call with 8-bit immediate
+//
+// Note: S-Type shares opcode 000 with M-Type but uses different
+// flag combinations (H=1, B=1) to distinguish from memory ops.
 
 constexpr size_t   S_IMM_BASE = 0;
 constexpr size_t   S_IMM_BITS = 8;
@@ -491,8 +505,10 @@ Instruction encode_syscall(Tokenizer* line, StringToIntMap* defines, LineError* 
 }
 
 // ================================================================
-//  Encode I-Type
+//  Encode I-Type — Immediate Load (opcode 001)
 // ================================================================
+//
+// Syntax: mvi <rd>, <imm24>
 
 constexpr size_t   I_IMM_BASE = 0;
 constexpr size_t   I_IMM_BITS = 23;
@@ -570,8 +586,26 @@ Instruction encode_i_type(Tokenizer* line, StringToIntMap* defines, LineError* e
 }
 
 // ================================================================
-//  Encode D-Type
+//  Encode D-Type — Data Processing (opcode 010)
 // ================================================================
+//
+// Syntax: <mnemonic> <rd>, <rs1>, <op2> (<shift-op> <shamt>)
+//
+// ALU operations with optional shifted operand:
+//   - Arithmetic: add, adc, sub, sbc (C flag for carry-in)
+//   - Logical:    and, or, xor
+//   - Keep-flags: addk, subk, andk, ork, xork (A flag, no status update)
+//   - Compare:    tst, teq, cmp, cpn (no destination write)
+//   - Shift:      sll, srl, sra, sllk (standalone shift operations)
+//
+// Operand modes:
+//   - Register RHS:  <rd>, <rs1>, <rs2>  (I=0)
+//   - Immediate RHS: <rd>, <rs1>, <imm9> (I=1)
+//   - Shifted:       <rd>, <rs1>, <op2> sll <shamt>
+//
+// Constraints:
+//   - Carry ops (adc/sbc) require register rhs
+//   - Right shifts cannot use keep-flags variants (srlk/srak invalid)
 
 constexpr size_t   D_RS2_BASE   = 0;
 constexpr size_t   D_IMM_BASE   = D_RS2_BASE;
@@ -905,8 +939,15 @@ Instruction encode_d_type(Tokenizer* line, uint32_t flags, DVariant variant, Str
 }
 
 // ================================================================
-//  Encode B-Type
+//  Encode B-Type — Branch (opcode 100)
 // ================================================================
+//
+// Syntax: <mnemonic> <target>
+//         <mnemonic> <rs1>          (register absolute)
+//
+// Forms:
+//   - b, beq, bne, blt, bge, blo, bhs, bmi
+//   - bl, bleq, blne, bllt, blge, bllo, blhs, blmi
 
 constexpr size_t   B_RS1_BASE  = 16;
 constexpr uint32_t B_COND_BASE = 24;
@@ -968,6 +1009,23 @@ Instruction encode_b_type(Tokenizer* line, uint32_t flags, LineError* err) {
 // ================================================================
 //  Encode Pseudo-Instructions
 // ================================================================
+//
+// Multi-instruction sequences using second_machine_word field:
+//
+// mvi32 <rd>, <imm32>
+//   Load full 32-bit constant (any value)
+//   Expands to: mvi rd, imm[22:0] ; addk rd, rd, imm[31:23] << 23
+//
+// lda <rd>, <label>
+//   Load absolute address of label (linker-resolved)
+//   Expands to: mvi rd, addr[22:0] ; addk rd, rd, addr[31:23] << 23
+//   Both instructions carry label reference for linker patching.
+//
+// raddr <rd>, <label>
+//   Load PC-relative address (position-independent code)
+//   Expands to: bl +4 ; addk rd, x1, offset
+//   First instruction captures PC+4 in link register (x1),
+//   second adds linker-computed offset to produce final address.
 
 Instruction encode_mvi32(Tokenizer* line, StringToIntMap* defines, LineError* err) {
     uint32_t machine_word = I_OPCODE;
@@ -1061,7 +1119,7 @@ Instruction encode_ldapcr(Tokenizer* line, LineError* err) {
 }
 
 // ================================================================
-//  Encode Instruction
+//  Encode Instruction — Dispatcher
 // ================================================================
 
 Instruction encode_instruction(Tokenizer* line, StringToIntMap* defines, LineError* err) {
