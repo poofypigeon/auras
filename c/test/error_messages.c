@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "../src/line_error.h"
+#include "../src/linker_section.h"
 #include "../src/parsing.h"
 #include "../src/string_slice.h"
 #include "../src/encode_instruction.h"
@@ -30,6 +31,19 @@ static void show_instruction_or_error_with_define(char* line_cstring, char* defi
         print_line_error("file.s", 1, err, line.line);
     } else {
         printf("%s: 0x%08x\n", line_cstring, machine_word);
+    }
+}
+
+static void show_linker_line_or_error(LinkerSection* section, char* line_cstring) {
+    StringToIntMap defines = {};
+    LineError err = {};
+    StringSlice line = slice_from_cstring(line_cstring);
+
+    bool line_has_section_content = process_line(section, line, &defines, &err);
+    if (err.error_tag) {
+        print_line_error("file.s", 1, err, line);
+    } else {
+        fprintf(stderr, "%s: %s\n", line_cstring, line_has_section_content ? "ok" : "directive");
     }
 }
 
@@ -144,6 +158,63 @@ void d_type() {
     show_instruction_or_error("    add x2, 256");
 }
 
+void linker_section() {
+    fprintf(stderr, "================================================================\n");
+    fprintf(stderr, " Linker section:\n");
+    fprintf(stderr, "================================================================\n");
+
+    // Missing section declaration
+    show_linker_line_or_error(nullptr, "anything");
+
+    LinkerSection section = linker_section_init();
+
+    // Expected 'eol' style errors
+    show_linker_line_or_error(&section, "L1: extra");
+    show_linker_line_or_error(&section, "    addr L1 extra");
+    show_linker_line_or_error(&section, "    ascii \"abc\" extra");
+    show_linker_line_or_error(&section, "    align 4 extra");
+    show_linker_line_or_error(&section, "    nop extra");
+    show_linker_line_or_error(&section, "    word 1 extra");
+
+    // Other diagnostics
+    show_linker_line_or_error(&section, "    addr");
+    show_linker_line_or_error(&section, "    addr 123");
+    show_linker_line_or_error(&section, "    bad");
+    show_linker_line_or_error(&section, "0:");
+    show_linker_line_or_error(&section, "L_no_colon");
+    show_linker_line_or_error(&section, "Lbad:!");
+    show_linker_line_or_error(&section, "    ascii \"\\x\"");
+    show_linker_line_or_error(&section, "    ascii \"");
+    show_linker_line_or_error(&section, "    ascii!");
+    show_linker_line_or_error(&section, "    align 3");
+    show_linker_line_or_error(&section, "    align 5");
+    show_linker_line_or_error(&section, "    align -4");
+    show_linker_line_or_error(&section, "    align 2");
+    show_linker_line_or_error(&section, "    align 0");
+    show_linker_line_or_error(&section, "    align foo");
+    show_linker_line_or_error(&section, "    word 0x1_0000_0000");
+    show_linker_line_or_error(&section, "    word -0x8000_0001");
+    show_linker_line_or_error(&section, "    half 0x1_0000");
+    show_linker_line_or_error(&section, "    half -0x8001");
+    show_linker_line_or_error(&section, "    byte 0x100");
+    show_linker_line_or_error(&section, "    byte -0x81");
+    show_linker_line_or_error(&section, "    word!");
+    show_linker_line_or_error(&section, "    word 0,!");
+    show_linker_line_or_error(&section, "    word *!");
+    show_linker_line_or_error(&section, "    word * word!");
+    show_linker_line_or_error(&section, "    word * word *");
+    show_linker_line_or_error(&section, "L1:");
+
+    // Label max length error (256 chars > 255 max)
+    char long_label[260];
+    for (size_t i = 0; i < 256; i++) long_label[i] = 'a';
+    long_label[256] = ':';
+    long_label[257] = '\0';
+    show_linker_line_or_error(&section, long_label);
+
+    linker_section_free(&section);
+}
+
 int main(void) {
     lw();
     mvi();
@@ -151,4 +222,5 @@ int main(void) {
     ssr();
     syscall();
     d_type();
+    linker_section();
 }

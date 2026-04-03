@@ -11,7 +11,7 @@
 #include "parsing.h"
 #include "string_slice.h"
 
-static bool is_symbol_start_char(char c) {
+bool is_symbol_start_char(char c) {
     return isalpha(c) || c == '_';
 }
 
@@ -68,7 +68,7 @@ StringSlice tokenizer_next(Tokenizer* tokenizer, LineError* err) {
         };
     }
 
-    // Consume characters until a non-label character is encountered
+    // Consume characters until a non-symbol character is encountered
     for (; tokenizer->token_end < line->length; tokenizer->token_end++) {
         if (!is_symbol_start_char(line->bytes[tokenizer->token_end]) && !isdigit(line->bytes[tokenizer->token_end])) break;
     }
@@ -373,7 +373,7 @@ bool expect_token(Tokenizer* line, StringSlice expected_token, LineError* err) {
     return true;
 }
 
-StringSlice expect_label(Tokenizer* line, LineError* err) {
+StringSlice expect_symbol(Tokenizer* line, LineError* err) {
     StringSlice token = tokenizer_next(line, err);
     if (err->error_tag) return (StringSlice){};
     if (token.length == 0) {
@@ -381,7 +381,7 @@ StringSlice expect_label(Tokenizer* line, LineError* err) {
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){
                 .column = line->token_start,
-                .expected = "label",
+                .expected = "symbol",
             },
         };
         return (StringSlice){};
@@ -391,13 +391,30 @@ StringSlice expect_label(Tokenizer* line, LineError* err) {
             .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
             .unexpected_token = (LineErrorUnexpectedToken){
                 .column = line->token_start,
-                .expected = "label",
+                .expected = "symbol",
                 .found = found_token_string(token),
             },
         };
         return (StringSlice){};
     }
     return token;
+}
+
+bool expect_eol(Tokenizer* line, LineError* err) {
+    StringSlice token = tokenizer_next(line, err);
+    if (err->error_tag) return false;
+    if (token.length > 0) {
+        *err = (LineError){
+            .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
+            .unexpected_token = (LineErrorUnexpectedToken){
+                .column = line->token_start,
+                .expected = "'eol'",
+                .found = found_token_string(token),
+            },
+        };
+        return false;
+    }
+    return true;
 }
 
 // ================================================================

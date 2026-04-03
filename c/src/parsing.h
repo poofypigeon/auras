@@ -30,6 +30,8 @@ typedef struct {
     };
 } Operand;
 
+bool is_symbol_start_char(char c);
+
 StringSlice tokenizer_next(Tokenizer* tokenizer, LineError* err);
 size_t tokenizer_next_token_start(Tokenizer* tokenizer);
 StringSlice tokenizer_curr(Tokenizer* tokenizer);
@@ -37,10 +39,11 @@ void tokenizer_put_back(Tokenizer* tokenizer);
 
 Operand parse_operand(StringSlice token, LineError* err);
 bool parse_register(StringSlice token, uint64_t* reg);
-int64_t parse_expression(Tokenizer* line, LineError* err, StringToIntMap* def_map);
+int64_t parse_expression(Tokenizer* line, LineError* err, StringToIntMap* defines);
 
 uint64_t expect_register(Tokenizer* tokenizer, LineError* err);
 bool expect_token(Tokenizer* line, StringSlice expected_token, LineError* err);
-StringSlice expect_label(Tokenizer* tokenizer, LineError* err);
+StringSlice expect_symbol(Tokenizer* tokenizer, LineError* err);
+bool expect_eol(Tokenizer* line, LineError* err);
 
 char* found_token_string(StringSlice token);

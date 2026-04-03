@@ -4,7 +4,7 @@ CFLAGS := -std=gnu23
 WARN_FLAGS := -Wall -Werror -Wpedantic
 TEST_FLAGS := -g
 
-ALL_CHECK_SUITES := parsing string_to_int_map encode_instruction
+ALL_CHECK_SUITES := parsing string_to_int_map encode_instruction linker_section
 
 ifdef SUITE
 	SUITES_TO_RUN := $(SUITE)
@@ -31,8 +31,8 @@ STRING_TO_INT_MAP_DEPENDENCIES := test/check_string_to_int_map.c \
 
 PARSING_DEPENDENCIES := test/check_parsing.c \
 	build/string_slice.o \
-	build/parsing.o \
 	build/string_to_int_map.o \
+	build/parsing.o \
 
 ENCODE_INSTRUCTION_DEPENDENCIES := test/check_encode_instruction.c \
 	build/string_slice.o \
@@ -40,6 +40,15 @@ ENCODE_INSTRUCTION_DEPENDENCIES := test/check_encode_instruction.c \
 	build/parsing.o \
 	build/perfect_hash.o \
 	build/encode_instruction.o \
+
+LINKER_SECTION_DEPENDENCIES := test/check_linker_section.c \
+	build/string_slice.o \
+	build/string_to_int_map.o \
+	build/parsing.o \
+	build/perfect_hash.o \
+	build/encode_instruction.o \
+	build/endianness.o \
+	build/linker_section.o \
 
 bin/check_string_to_int_map: $(STRING_TO_INT_MAP_DEPENDENCIES)
 	$(CC) $(CFLAGS) $(shell pkg-config --cflags --libs check) $^ -o $@
@@ -50,6 +59,9 @@ bin/check_parsing: $(PARSING_DEPENDENCIES)
 bin/check_encode_instruction: $(ENCODE_INSTRUCTION_DEPENDENCIES)
 	$(CC) $(CFLAGS) $(shell pkg-config --cflags --libs check) $^ -o $@
 
+bin/check_linker_section: $(LINKER_SECTION_DEPENDENCIES)
+	$(CC) $(CFLAGS) $(shell pkg-config --cflags --libs check) $^ -o $@
+
 ERROR_MESSAGES_DEPENDENCIES := test/error_messages.c \
 	build/string_slice.o \
 	build/line_error.o \
@@ -57,6 +69,8 @@ ERROR_MESSAGES_DEPENDENCIES := test/error_messages.c \
 	build/parsing.o \
 	build/perfect_hash.o \
 	build/encode_instruction.o \
+	build/endianness.o \
+	build/linker_section.o \
 
 bin/error_messages: $(ERROR_MESSAGES_DEPENDENCIES)
 	$(CC) $(CFLAGS) $(shell pkg-config --cflags --libs check) $^ -o $@

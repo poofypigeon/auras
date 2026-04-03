@@ -991,14 +991,14 @@ Instruction encode_b_type(Tokenizer* line, uint32_t flags, LineError* err) {
     if (!parse_register(token, (uint64_t*)&rs1)) {
         *line = tokenizer_at_offset_start;
 
-        StringSlice label = expect_label(line, err);
+        StringSlice label = expect_symbol(line, err);
         if (err->error_tag) return (Instruction){};
 
         machine_word |= B_I;
 
         return (Instruction){
             .machine_word = machine_word,
-            .label = label,
+            .relocation_symbol = label,
         };
     }
 
@@ -1076,7 +1076,7 @@ Instruction encode_lda(Tokenizer* line, LineError* err) {
     
     if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
     
-    StringSlice label = expect_label(line, err);
+    StringSlice label = expect_symbol(line, err);
     if (err->error_tag) return (Instruction){};
     
     machine_word |= rd << I_RD_BASE;
@@ -1088,7 +1088,7 @@ Instruction encode_lda(Tokenizer* line, LineError* err) {
     return (Instruction){
         .machine_word = machine_word,
         .second_machine_word = second_machine_word,
-        .label = label,
+        .relocation_symbol = label,
     };
 }
 
@@ -1101,7 +1101,7 @@ Instruction encode_ldapcr(Tokenizer* line, LineError* err) {
     
     if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
     
-    StringSlice label = expect_label(line, err);
+    StringSlice label = expect_symbol(line, err);
     if (err->error_tag) return (Instruction){};
     
     constexpr uint32_t offset = 0x4; // scrambled branch offset (+4)
@@ -1114,7 +1114,7 @@ Instruction encode_ldapcr(Tokenizer* line, LineError* err) {
     return (Instruction){
         .machine_word = machine_word,
         .second_machine_word = second_machine_word,
-        .label = label,
+        .relocation_symbol = label,
     };
 }
 
@@ -1122,60 +1122,50 @@ Instruction encode_ldapcr(Tokenizer* line, LineError* err) {
 //  Encode Instruction — Dispatcher
 // ================================================================
 
-Instruction encode_instruction(Tokenizer* line, StringToIntMap* defines, LineError* err) {
-    StringSlice token = {};
-    token = tokenizer_next(line, err);
-    if (token.length == 0) return (Instruction){};
-
-    Mnemonic mnem = parse_mnemonic(token);
-
-    Instruction encoding = (Instruction){};
+Instruction encode_instruction_by_mnemonic(Tokenizer* line, Mnemonic mnem, StringToIntMap* defines, LineError* err) {
+    Instruction machine_word = (Instruction){};
     switch (mnem) {
         // M-Type
-        case MN_LW:  encoding = encode_m_type(line, 0,        defines, err); break;
-        case MN_LB:  encoding = encode_m_type(line, M_B,      defines, err); break;
-        case MN_LH:  encoding = encode_m_type(line, M_H,      defines, err); break;
-        case MN_LBU: encoding = encode_m_type(line, M_B|M_U,  defines, err); break;
-        case MN_LHU: encoding = encode_m_type(line, M_H|M_U,  defines, err); break;
-        case MN_SW:  encoding = encode_m_type(line, M_ST,     defines, err); break;
-        case MN_SB:  encoding = encode_m_type(line, M_ST|M_B, defines, err); break;
-        case MN_SH:  encoding = encode_m_type(line, M_ST|M_H, defines, err); break;
+        case MN_LW:  machine_word = encode_m_type(line, 0,        defines, err); break;
+        case MN_LB:  machine_word = encode_m_type(line, M_B,      defines, err); break;
+        case MN_LH:  machine_word = encode_m_type(line, M_H,      defines, err); break;
+        case MN_LBU: machine_word = encode_m_type(line, M_B|M_U,  defines, err); break;
+        case MN_LHU: machine_word = encode_m_type(line, M_H|M_U,  defines, err); break;
+        case MN_SW:  machine_word = encode_m_type(line, M_ST,     defines, err); break;
+        case MN_SB:  machine_word = encode_m_type(line, M_ST|M_B, defines, err); break;
+        case MN_SH:  machine_word = encode_m_type(line, M_ST|M_H, defines, err); break;
         // S-Type
-        case MN_LSR: encoding = encode_lsr(line, defines, err); break;
-        case MN_SSR: encoding = encode_ssr(line, defines, err); break;
-        case MN_SYSCALL: encoding = encode_syscall(line, defines, err); break;
+        case MN_LSR: machine_word = encode_lsr(line, defines, err); break;
+        case MN_SSR: machine_word = encode_ssr(line, defines, err); break;
+        case MN_SYSCALL: machine_word = encode_syscall(line, defines, err); break;
         // I-Type
-        case MN_MVI: encoding = encode_i_type(line, defines, err); break;
+        case MN_MVI: machine_word = encode_i_type(line, defines, err); break;
         // D-Type
-        case MN_ADD:  encoding = encode_d_type(line, D_FUNC_ADD,                     D_VARIANT_BASIC,  defines, err); break;
-        case MN_ADC:  encoding = encode_d_type(line, D_FUNC_ADD         |D_C,        D_VARIANT_BASIC,  defines, err); break;
-        case MN_SUB:  encoding = encode_d_type(line, D_FUNC_ADD|D_SB,                D_VARIANT_BASIC,  defines, err); break;
-        case MN_SBC:  encoding = encode_d_type(line, D_FUNC_ADD|D_SB    |D_C,        D_VARIANT_BASIC,  defines, err); break;
-        case MN_AND:  encoding = encode_d_type(line, D_FUNC_AND,                     D_VARIANT_BASIC,  defines, err); break;
-        case MN_OR:   encoding = encode_d_type(line, D_FUNC_OR,                      D_VARIANT_BASIC,  defines, err); break;
-        case MN_XOR:  encoding = encode_d_type(line, D_FUNC_XOR,                     D_VARIANT_BASIC,  defines, err); break;
-        case MN_ADDK: encoding = encode_d_type(line, D_FUNC_ADD     |D_A,            D_VARIANT_BASIC,  defines, err); break;
-        case MN_ADCK: encoding = encode_d_type(line, D_FUNC_ADD     |D_A|D_C,        D_VARIANT_BASIC,  defines, err); break;
-        case MN_SUBK: encoding = encode_d_type(line, D_FUNC_ADD|D_SB|D_A,            D_VARIANT_BASIC,  defines, err); break;
-        case MN_SBCK: encoding = encode_d_type(line, D_FUNC_ADD|D_SB|D_A|D_C,        D_VARIANT_BASIC,  defines, err); break;
-        case MN_ANDK: encoding = encode_d_type(line, D_FUNC_AND     |D_A,            D_VARIANT_BASIC,  defines, err); break;
-        case MN_ORK:  encoding = encode_d_type(line, D_FUNC_OR      |D_A,            D_VARIANT_BASIC,  defines, err); break;
-        case MN_XORK: encoding = encode_d_type(line, D_FUNC_XOR     |D_A,            D_VARIANT_BASIC,  defines, err); break;
-
-        case MN_TST:  encoding = encode_d_type(line, D_FUNC_AND,                     D_VARIANT_NO_RD,  defines, err); break;
-        case MN_TEQ:  encoding = encode_d_type(line, D_FUNC_XOR,                     D_VARIANT_NO_RD,  defines, err); break;
-        case MN_CMP:  encoding = encode_d_type(line, D_FUNC_ADD|D_SB,                D_VARIANT_NO_RD,  defines, err); break;
-        case MN_CPN:  encoding = encode_d_type(line, D_FUNC_ADD,                     D_VARIANT_NO_RD,  defines, err); break;
-
-        case MN_SLL:  encoding = encode_d_type(line, D_FUNC_ADD,                     D_VARIANT_NO_RS1, defines, err); break;
-        case MN_SRL:  encoding = encode_d_type(line, D_FUNC_ADD|D_D,                 D_VARIANT_NO_RS1, defines, err); break;
-        case MN_SRA:  encoding = encode_d_type(line, D_FUNC_ADD|D_D|D_A,             D_VARIANT_NO_RS1, defines, err); break;
-        case MN_SLLK: encoding = encode_d_type(line, D_FUNC_ADD|    D_A,             D_VARIANT_NO_RS1, defines, err); break;
-
-        case MN_MOV:  encoding = encode_d_type(line, D_FUNC_ADD|D_A,                 D_VARIANT_NO_RS2, defines, err); break;
-        case MN_NOT:  encoding = encode_d_type(line, D_FUNC_XOR|D_SB|D_I|D_IMM_MASK, D_VARIANT_NO_RS2, defines, err); break;
-
-        case MN_NOP:  encoding = encode_d_type(line, D_FUNC_ADD|D_A,                 D_VARIANT_NOP,    defines, err); break;
+        case MN_ADD:  machine_word = encode_d_type(line, D_FUNC_ADD,                     D_VARIANT_BASIC,  defines, err); break;
+        case MN_ADC:  machine_word = encode_d_type(line, D_FUNC_ADD         |D_C,        D_VARIANT_BASIC,  defines, err); break;
+        case MN_SUB:  machine_word = encode_d_type(line, D_FUNC_ADD|D_SB,                D_VARIANT_BASIC,  defines, err); break;
+        case MN_SBC:  machine_word = encode_d_type(line, D_FUNC_ADD|D_SB    |D_C,        D_VARIANT_BASIC,  defines, err); break;
+        case MN_AND:  machine_word = encode_d_type(line, D_FUNC_AND,                     D_VARIANT_BASIC,  defines, err); break;
+        case MN_OR:   machine_word = encode_d_type(line, D_FUNC_OR,                      D_VARIANT_BASIC,  defines, err); break;
+        case MN_XOR:  machine_word = encode_d_type(line, D_FUNC_XOR,                     D_VARIANT_BASIC,  defines, err); break;
+        case MN_ADDK: machine_word = encode_d_type(line, D_FUNC_ADD     |D_A,            D_VARIANT_BASIC,  defines, err); break;
+        case MN_ADCK: machine_word = encode_d_type(line, D_FUNC_ADD     |D_A|D_C,        D_VARIANT_BASIC,  defines, err); break;
+        case MN_SUBK: machine_word = encode_d_type(line, D_FUNC_ADD|D_SB|D_A,            D_VARIANT_BASIC,  defines, err); break;
+        case MN_SBCK: machine_word = encode_d_type(line, D_FUNC_ADD|D_SB|D_A|D_C,        D_VARIANT_BASIC,  defines, err); break;
+        case MN_ANDK: machine_word = encode_d_type(line, D_FUNC_AND     |D_A,            D_VARIANT_BASIC,  defines, err); break;
+        case MN_ORK:  machine_word = encode_d_type(line, D_FUNC_OR      |D_A,            D_VARIANT_BASIC,  defines, err); break;
+        case MN_XORK: machine_word = encode_d_type(line, D_FUNC_XOR     |D_A,            D_VARIANT_BASIC,  defines, err); break;
+        case MN_TST:  machine_word = encode_d_type(line, D_FUNC_AND,                     D_VARIANT_NO_RD,  defines, err); break;
+        case MN_TEQ:  machine_word = encode_d_type(line, D_FUNC_XOR,                     D_VARIANT_NO_RD,  defines, err); break;
+        case MN_CMP:  machine_word = encode_d_type(line, D_FUNC_ADD|D_SB,                D_VARIANT_NO_RD,  defines, err); break;
+        case MN_CPN:  machine_word = encode_d_type(line, D_FUNC_ADD,                     D_VARIANT_NO_RD,  defines, err); break;
+        case MN_SLL:  machine_word = encode_d_type(line, D_FUNC_ADD,                     D_VARIANT_NO_RS1, defines, err); break;
+        case MN_SRL:  machine_word = encode_d_type(line, D_FUNC_ADD|D_D,                 D_VARIANT_NO_RS1, defines, err); break;
+        case MN_SRA:  machine_word = encode_d_type(line, D_FUNC_ADD|D_D|D_A,             D_VARIANT_NO_RS1, defines, err); break;
+        case MN_SLLK: machine_word = encode_d_type(line, D_FUNC_ADD|    D_A,             D_VARIANT_NO_RS1, defines, err); break;
+        case MN_MOV:  machine_word = encode_d_type(line, D_FUNC_ADD|D_A,                 D_VARIANT_NO_RS2, defines, err); break;
+        case MN_NOT:  machine_word = encode_d_type(line, D_FUNC_XOR|D_SB|D_I|D_IMM_MASK, D_VARIANT_NO_RS2, defines, err); break;
+        case MN_NOP:  machine_word = encode_d_type(line, D_FUNC_ADD|D_A,                 D_VARIANT_NOP,    defines, err); break;
         case MN_SRLK:
         case MN_SRAK:
             *err = (LineError){
@@ -1188,42 +1178,38 @@ Instruction encode_instruction(Tokenizer* line, StringToIntMap* defines, LineErr
             };
             return (Instruction){};
         // B-Type
-        case MN_B:    encoding = encode_b_type(line, B_COND_AL,     err); break;
-        case MN_BEQ:  encoding = encode_b_type(line, B_COND_EQ,     err); break;
-        case MN_BNE:  encoding = encode_b_type(line, B_COND_NE,     err); break;
-        case MN_BLT:  encoding = encode_b_type(line, B_COND_LT,     err); break;
-        case MN_BGE:  encoding = encode_b_type(line, B_COND_GE,     err); break;
-        case MN_BLO:  encoding = encode_b_type(line, B_COND_LO,     err); break;
-        case MN_BHS:  encoding = encode_b_type(line, B_COND_HS,     err); break;
-        case MN_BMI:  encoding = encode_b_type(line, B_COND_MI,     err); break;
-        case MN_BL:   encoding = encode_b_type(line, B_COND_AL|B_L, err); break;
-        case MN_BLEQ: encoding = encode_b_type(line, B_COND_EQ|B_L, err); break;
-        case MN_BLNE: encoding = encode_b_type(line, B_COND_NE|B_L, err); break;
-        case MN_BLLT: encoding = encode_b_type(line, B_COND_LT|B_L, err); break;
-        case MN_BLGE: encoding = encode_b_type(line, B_COND_GE|B_L, err); break;
-        case MN_BLLO: encoding = encode_b_type(line, B_COND_LO|B_L, err); break;
-        case MN_BLHS: encoding = encode_b_type(line, B_COND_HS|B_L, err); break;
-        case MN_BLMI: encoding = encode_b_type(line, B_COND_MI|B_L, err); break;
+        case MN_B:    machine_word = encode_b_type(line, B_COND_AL,     err); break;
+        case MN_BEQ:  machine_word = encode_b_type(line, B_COND_EQ,     err); break;
+        case MN_BNE:  machine_word = encode_b_type(line, B_COND_NE,     err); break;
+        case MN_BLT:  machine_word = encode_b_type(line, B_COND_LT,     err); break;
+        case MN_BGE:  machine_word = encode_b_type(line, B_COND_GE,     err); break;
+        case MN_BLO:  machine_word = encode_b_type(line, B_COND_LO,     err); break;
+        case MN_BHS:  machine_word = encode_b_type(line, B_COND_HS,     err); break;
+        case MN_BMI:  machine_word = encode_b_type(line, B_COND_MI,     err); break;
+        case MN_BL:   machine_word = encode_b_type(line, B_COND_AL|B_L, err); break;
+        case MN_BLEQ: machine_word = encode_b_type(line, B_COND_EQ|B_L, err); break;
+        case MN_BLNE: machine_word = encode_b_type(line, B_COND_NE|B_L, err); break;
+        case MN_BLLT: machine_word = encode_b_type(line, B_COND_LT|B_L, err); break;
+        case MN_BLGE: machine_word = encode_b_type(line, B_COND_GE|B_L, err); break;
+        case MN_BLLO: machine_word = encode_b_type(line, B_COND_LO|B_L, err); break;
+        case MN_BLHS: machine_word = encode_b_type(line, B_COND_HS|B_L, err); break;
+        case MN_BLMI: machine_word = encode_b_type(line, B_COND_MI|B_L, err); break;
         // Pseudo-Instructions
-        case MN_MVI32: encoding = encode_mvi32(line, defines, err); break;
-        case MN_LDA:   encoding = encode_lda(line, err); break;
-        case MN_LDAPCR: encoding = encode_ldapcr(line, err); break;
-        default: return (Instruction){};
+        case MN_MVI32: machine_word = encode_mvi32(line, defines, err); break;
+        case MN_LDA: machine_word = encode_lda(line, err); break;
+        case MN_LDAPCR: machine_word = encode_ldapcr(line, err); break;
+        default: unreachable();
     }
 
-    token = tokenizer_next(line, err);
-    if (err->error_tag) return (Instruction){};
-    if (token.length > 0) {
-        *err = (LineError){
-            .error_tag = LINE_ERROR_UNEXPECTED_TOKEN,
-            .unexpected_token = (LineErrorUnexpectedToken){
-                .column = line->token_start,
-                .expected = "'eol'",
-                .found = found_token_string(token),
-            },
-        };
-        return (Instruction){};
-    }
+    if (!expect_eol(line, err)) return (Instruction){};
 
-    return encoding;
+    return machine_word;
+}
+
+Instruction encode_instruction(Tokenizer* line, StringToIntMap* defines, LineError* err) {
+    StringSlice token = tokenizer_next(line, err);
+    if (token.length == 0) return (Instruction){};
+
+    Mnemonic mnem = parse_mnemonic(token);
+    return encode_instruction_by_mnemonic(line, mnem, defines, err);
 }

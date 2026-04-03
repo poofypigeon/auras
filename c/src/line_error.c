@@ -18,7 +18,7 @@ static void underline(StringSlice line_text, size_t start_column, size_t end_col
     if (end_column < start_column) {
         Tokenizer tokenizer = (Tokenizer){ .line = line_text, .token_end = start_column };
         LineError err = {};
-        StringSlice token = tokenizer_next(&tokenizer, &err);
+        (void)tokenizer_next(&tokenizer, &err);
         assert(err.error_tag == LINE_ERROR_NONE);
         end_column = tokenizer.token_end;
     }

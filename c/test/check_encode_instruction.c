@@ -33,7 +33,7 @@ static bool check_branch_label(char* line_raw, uint32_t expected_flags, char* ex
     Instruction instr = encode_instruction(&line, &defines, &err);
     if (err.error_tag) return false;
     if (instr.machine_word != expected_flags) return false;
-    return slice_eq(instr.label, slice_from_cstring(expected_label));
+    return slice_eq(instr.relocation_symbol, slice_from_cstring(expected_label));
 }
 
 static bool check_two_instructions(char* line_raw, uint32_t expected_first, uint32_t expected_second) {
@@ -868,7 +868,7 @@ START_TEST(test_lda_label) {
     ck_assert(!err.error_tag);
     ck_assert_uint_eq(instr.machine_word, 0x2F000000);
     ck_assert_uint_eq(instr.second_machine_word, 0x4F0FB700);
-    ck_assert(slice_eq(instr.label, slice_from_cstring("my_label")));
+    ck_assert(slice_eq(instr.relocation_symbol, slice_from_cstring("my_label")));
 } END_TEST
 
 START_TEST(test_raddr_label) {
@@ -879,7 +879,7 @@ START_TEST(test_raddr_label) {
     ck_assert(!err.error_tag);
     ck_assert_uint_eq(instr.machine_word, 0x9F000004);
     ck_assert_uint_eq(instr.second_machine_word, 0x5401A000);
-    ck_assert(slice_eq(instr.label, slice_from_cstring("func_label")));
+    ck_assert(slice_eq(instr.relocation_symbol, slice_from_cstring("func_label")));
 } END_TEST
 
 Suite* pseudo_suite(void) {

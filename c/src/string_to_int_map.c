@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +21,7 @@ static StringToIntMap init(size_t times_grown) {
 
     map.key = calloc(map_capacity_primes[times_grown], sizeof(StringSlice));
     if (map.key == nullptr) {
-        perror("malloc");
+        perror("calloc");
         exit(EXIT_FAILURE);
     }
 

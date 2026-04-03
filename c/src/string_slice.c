@@ -7,6 +7,13 @@ StringSlice slice_from_cstring(const char* str) {
     return (StringSlice){ .length = strlen(str), .bytes = str };
 }
 
+char* cstring_from_slice(StringSlice slice) {
+    char* cstring = malloc(slice.length + 1);
+    memcpy(cstring, slice.bytes, slice.length);
+    cstring[slice.length] = '\0';
+    return cstring;
+}
+
 char* quoted_cstring_from_slice(StringSlice slice) {
     char* cstring = malloc(slice.length + 2 + 1);
     memcpy(cstring + 1, slice.bytes, slice.length);
