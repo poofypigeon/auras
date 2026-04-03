@@ -633,7 +633,7 @@ START_TEST(test_expression_integer_too_large_positive) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("9223372036854775808") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NOT_ENCODABLE);
     ck_assert_str_eq(err.not_encodable.message, "integer literal is too large");
 } END_TEST
@@ -645,7 +645,7 @@ START_TEST(test_expression_integer_too_large_negative) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("-9223372036854775809") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NOT_ENCODABLE);
     ck_assert_str_eq(err.not_encodable.message, "integer literal is too large");
 } END_TEST
@@ -657,7 +657,7 @@ START_TEST(test_expression_empty) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_TOKEN);
     ck_assert_str_eq(err.unexpected_token.expected, "expression");
 } END_TEST
@@ -669,17 +669,17 @@ START_TEST(test_expression_lone_unary) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("-") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_TOKEN);
     ck_assert_str_eq(err.unexpected_token.expected, "expression");
 
     line = (Tokenizer){ .line = slice_from_cstring("+") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_TOKEN);
     ck_assert_str_eq(err.unexpected_token.expected, "expression");
 
     line = (Tokenizer){ .line = slice_from_cstring("~") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_TOKEN);
     ck_assert_str_eq(err.unexpected_token.expected, "expression");
 } END_TEST
@@ -691,7 +691,7 @@ START_TEST(test_expression_lone_open_paren) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("(") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_TOKEN);
     ck_assert_str_eq(err.unexpected_token.expected, "expression");
 } END_TEST
@@ -703,7 +703,7 @@ START_TEST(test_expression_missing_close_paren) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("(1 + 1") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_TOKEN);
     ck_assert_str_eq(err.unexpected_token.expected, "')'");
 } END_TEST
@@ -715,7 +715,7 @@ START_TEST(test_expression_empty_paren) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("()") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_TOKEN);
     ck_assert_str_eq(err.unexpected_token.expected, "expression");
     ck_assert_str_eq(err.unexpected_token.found, "')'");
@@ -728,7 +728,7 @@ START_TEST(test_expression_undefined) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("foo") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNDEFINED_IDENTIFIER);
 
     map_free(&defines);
@@ -741,7 +741,7 @@ START_TEST(test_expression_incomplete) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("1 +") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_TOKEN);
     ck_assert_str_eq(err.unexpected_token.expected, "expression");
 } END_TEST
@@ -753,7 +753,7 @@ START_TEST(test_expression_unexpected) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("1 + !") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_UNEXPECTED_TOKEN);
     ck_assert_str_eq(err.unexpected_token.expected, "expression");
     ck_assert_str_eq(err.unexpected_token.found, "'!'");
@@ -766,15 +766,15 @@ START_TEST(test_expression_negative_shift_amount) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("1 << -1") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NEGATIVE_SHIFT_AMOUNT);
 
     line = (Tokenizer){ .line = slice_from_cstring("1 >> -1") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NEGATIVE_SHIFT_AMOUNT);
 
     line = (Tokenizer){ .line = slice_from_cstring("1 >> (1 - 10)") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NEGATIVE_SHIFT_AMOUNT);
 } END_TEST
 
@@ -787,12 +787,12 @@ START_TEST(test_expression_integer) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("1") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 1);
 
     line = (Tokenizer){ .line = slice_from_cstring("9223372036854775807") };
-    value = parse_expression(&line, &err, 0);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 9223372036854775807);
 } END_TEST
@@ -804,12 +804,12 @@ START_TEST(test_expression_character_literal) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("'A'") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 'A');
 
     line = (Tokenizer){ .line = slice_from_cstring("'ABC'") };
-    value = parse_expression(&line, &err, 0);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, ('A' << 0) + ('B' << 8) + ('C' << 16));
 } END_TEST
@@ -821,12 +821,12 @@ START_TEST(test_expression_integer_unary_plus) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("+1") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, +1);
 
     line = (Tokenizer){ .line = slice_from_cstring("+9223372036854775807") };
-    value = parse_expression(&line, &err, 0);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, +9223372036854775807);
 } END_TEST
@@ -838,12 +838,12 @@ START_TEST(test_expression_integer_unary_minus) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("-1") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, -1);
 
     line = (Tokenizer){ .line = slice_from_cstring("-9223372036854775808") };
-    value = parse_expression(&line, &err, 0);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, -9223372036854775808u);
 } END_TEST
@@ -857,12 +857,12 @@ START_TEST(test_expression_sum) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("1 + 1") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 1 + 1);
 
     line = (Tokenizer){ .line = slice_from_cstring("123 + 456") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 123 + 456);
 } END_TEST
@@ -874,12 +874,12 @@ START_TEST(test_expression_difference) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("1 - 1") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 1 - 1);
 
     line = (Tokenizer){ .line = slice_from_cstring("123 - 456") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 123 - 456);
 } END_TEST
@@ -891,12 +891,12 @@ START_TEST(test_expression_and) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("1 & 1") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 1 & 1);
 
     line = (Tokenizer){ .line = slice_from_cstring("123 & 456") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 123 & 456);
 } END_TEST
@@ -908,12 +908,12 @@ START_TEST(test_expression_or) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("1 | 1") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 1 | 1);
 
     line = (Tokenizer){ .line = slice_from_cstring("123 | 456") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 123 | 456);
 } END_TEST
@@ -925,12 +925,12 @@ START_TEST(test_expression_xor) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("1 ^ 1") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 1 ^ 1);
 
     line = (Tokenizer){ .line = slice_from_cstring("123 ^ 456") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 123 ^ 456);
 } END_TEST
@@ -942,12 +942,12 @@ START_TEST(test_expression_left_shift) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("1 << 1") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 1 << 1);
 
     line = (Tokenizer){ .line = slice_from_cstring("0xCAFE << 8") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 0xCAFE << 8);
 } END_TEST
@@ -959,12 +959,12 @@ START_TEST(test_expression_right_shift) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("0x8 >> 2") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 0x8 >> 2);
 
     line = (Tokenizer){ .line = slice_from_cstring("0xCAFE >> 8") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 0xCAFE >> 8);
 } END_TEST
@@ -976,12 +976,12 @@ START_TEST(test_expression_product) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("10 * 2") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 10 * 2);
 
     line = (Tokenizer){ .line = slice_from_cstring("123 * 456") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 123 * 456);
 } END_TEST
@@ -993,12 +993,12 @@ START_TEST(test_expression_quotient) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("10 / 2") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 10 / 2);
 
     line = (Tokenizer){ .line = slice_from_cstring("456 / 123") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 456 / 123);
 } END_TEST
@@ -1010,12 +1010,12 @@ START_TEST(test_expression_modulus) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("10 % 2") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 10 % 2);
 
     line = (Tokenizer){ .line = slice_from_cstring("456 % 123") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 456 % 123);
 } END_TEST
@@ -1029,12 +1029,12 @@ START_TEST(test_expression_precedence) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("10 + 2 * 3") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 10 + 2 * 3);
 
     line = (Tokenizer){ .line = slice_from_cstring("456 + 123 * 27") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 456 + 123 * 27);
 } END_TEST
@@ -1046,7 +1046,7 @@ START_TEST(test_expression_one_in_parens) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("(1)") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, (1));
 }
@@ -1058,22 +1058,22 @@ START_TEST(test_expression_parenthesis) {
     int64_t value;
 
     line = (Tokenizer){ .line = slice_from_cstring("(10 + 2) * 3") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, (10 + 2) * 3);
 
     line = (Tokenizer){ .line = slice_from_cstring("(456 + 123) * 27") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, (456 + 123) * 27);
 
     line = (Tokenizer){ .line = slice_from_cstring("-(1)") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, -(1));
 
     line = (Tokenizer){ .line = slice_from_cstring("+'x' * -(2 + ((456 - (10 << 4)) * 123)) / -27)") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, +'x' * -(2 + ((456 - (10 << 4)) * 123)) / -27);
 } END_TEST
@@ -1090,17 +1090,17 @@ START_TEST(test_expression_one_define) {
     map_insert(&defines, foo, 1);
 
     line = (Tokenizer){ .line = slice_from_cstring("foo") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 1);
 
     line = (Tokenizer){ .line = slice_from_cstring("-foo") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, -1);
 
     line = (Tokenizer){ .line = slice_from_cstring("-(foo)") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, -1);
 
@@ -1119,17 +1119,17 @@ START_TEST(test_expression_two_defines) {
     map_insert(&defines, bar, 4567);
 
     line = (Tokenizer){ .line = slice_from_cstring("foo | bar") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 123 | 4567);
 
     line = (Tokenizer){ .line = slice_from_cstring("-(foo ^ -(-bar))") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, -(123 ^ -(-4567)));
 
     line = (Tokenizer){ .line = slice_from_cstring("foo*(foo&foo>>2)-bar") };
-    value = parse_expression(&line, &err, &defines);
+    value = parse_expression(&line, &defines, &err);
     ck_assert_int_eq(err.error_tag, LINE_ERROR_NONE);
     ck_assert_int_eq(value, 123*(123&123>>2)-4567);
 

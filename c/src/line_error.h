@@ -19,7 +19,8 @@ typedef enum {
 } LineErrorType;
 
 typedef struct {
-    size_t column; } LineErrorUnexpectedEOL;
+    size_t column;
+} LineErrorUnexpectedEOL;
 
 typedef struct {
     size_t column; char* found; char* expected;

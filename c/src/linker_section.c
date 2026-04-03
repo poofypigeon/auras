@@ -328,7 +328,7 @@ static size_t process_static_data(LinkerSection* section, Tokenizer* line, size_
     while (true) {
         size_t value_start_column = tokenizer_next_token_start(line);
 
-        int64_t value = parse_expression(line, err, defines);
+        int64_t value = parse_expression(line, defines, err);
         if (err->error_tag) return 0;
 
         bool positive_and_not_encodable = value > data_type_max;
@@ -382,7 +382,7 @@ static size_t process_static_data(LinkerSection* section, Tokenizer* line, size_
 static void process_align(LinkerSection* section, Tokenizer* line, StringToIntMap* defines, LineError* err) {
     size_t alignment_start_column = tokenizer_next_token_start(line);
 
-    int64_t alignment = parse_expression(line, err, defines);
+    int64_t alignment = parse_expression(line, defines, err);
     if (err->error_tag) return;
 
     char* message = nullptr;

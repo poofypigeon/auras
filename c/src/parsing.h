@@ -39,7 +39,7 @@ void tokenizer_put_back(Tokenizer* tokenizer);
 
 Operand parse_operand(StringSlice token, LineError* err);
 bool parse_register(StringSlice token, uint64_t* reg);
-int64_t parse_expression(Tokenizer* line, LineError* err, StringToIntMap* defines);
+int64_t parse_expression(Tokenizer* line, StringToIntMap* defines, LineError* err);
 
 uint64_t expect_register(Tokenizer* tokenizer, LineError* err);
 bool expect_token(Tokenizer* line, StringSlice expected_token, LineError* err);

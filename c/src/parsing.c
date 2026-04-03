@@ -432,9 +432,9 @@ typedef enum {
 } BindingPower;
 
 // define in advance so that null_denotation can call this
-static int64_t expression(Tokenizer* line, LineError* err, StringToIntMap* defines, BindingPower rbp);
+static int64_t expression(Tokenizer* line, BindingPower rbp, StringToIntMap* defines, LineError* err);
 
-static int64_t null_denotation(Tokenizer* line, LineError* err, StringToIntMap* defines) {
+static int64_t null_denotation(Tokenizer* line, StringToIntMap* defines, LineError* err) {
     StringSlice token = tokenizer_curr(line);
 
     size_t nud_start = line->token_start;
@@ -460,7 +460,7 @@ static int64_t null_denotation(Tokenizer* line, LineError* err, StringToIntMap* 
 
     int64_t value = 0;
     if (token.bytes[0] == '(') {
-        value = expression(line, err, defines, 0);
+        value = expression(line, 0, defines, err);
         if (err->error_tag) return 0;
 
         token = tokenizer_next(line, err);
@@ -566,7 +566,7 @@ static BindingPower binding_power(StringSlice token) {
     }
 }
 
-static int64_t expression(Tokenizer* line, LineError* err, StringToIntMap* defines, BindingPower rbp) {
+static int64_t expression(Tokenizer* line, BindingPower rbp, StringToIntMap* defines, LineError* err) {
     StringSlice token = tokenizer_next(line, err);
     if (err->error_tag) return 0;
     if (token.length == 0) {
@@ -580,7 +580,7 @@ static int64_t expression(Tokenizer* line, LineError* err, StringToIntMap* defin
         return 0;
     }
 
-    int64_t left = null_denotation(line, err, defines);
+    int64_t left = null_denotation(line, defines, err);
     if (err->error_tag) return 0;
 
     size_t expression_start_column = 0;
@@ -594,12 +594,12 @@ static int64_t expression(Tokenizer* line, LineError* err, StringToIntMap* defin
         if (bp <= rbp) break;
 
         expression_start_column = tokenizer_next_token_start(line);
-        int64_t right = expression(line, err, defines, bp);
+        int64_t right = expression(line, bp, defines, err);
         if (err->error_tag) return 0;
 
         switch (token.bytes[0]) {
-        case '+': left +=  right; break;
-        case '-': left -=  right; break;
+        case '+': left += right; break;
+        case '-': left -= right; break;
         case '<':
             if (right < 0) goto NEGATIVE_SHIFT_VALUE;
             left <<= right;
@@ -608,12 +608,12 @@ static int64_t expression(Tokenizer* line, LineError* err, StringToIntMap* defin
             if (right < 0) goto NEGATIVE_SHIFT_VALUE;
             left >>= right;
             break;
-        case '&': left &=  right; break;
-        case '|': left |=  right; break;
-        case '^': left ^=  right; break;
-        case '*': left *=  right; break;
-        case '/': left /=  right; break;
-        case '%': left %=  right; break;
+        case '&': left &= right; break;
+        case '|': left |= right; break;
+        case '^': left ^= right; break;
+        case '*': left *= right; break;
+        case '/': left /= right; break;
+        case '%': left %= right; break;
         }
     }
 
@@ -631,6 +631,6 @@ NEGATIVE_SHIFT_VALUE:
     return 0;
 }
 
-int64_t parse_expression(Tokenizer* line, LineError* err, StringToIntMap* defines) {
-    return expression(line, err, defines, 0);
+int64_t parse_expression(Tokenizer* line, StringToIntMap* defines, LineError* err) {
+    return expression(line, 0, defines, err);
 }

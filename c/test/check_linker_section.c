@@ -4,7 +4,6 @@
 
 #include <check.h>
 
-#include "../src/encode_instruction.h"
 #include "../src/endianness.h"
 #include "../src/line_error.h"
 #include "../src/linker_section.h"

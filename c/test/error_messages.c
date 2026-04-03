@@ -39,11 +39,11 @@ static void show_linker_line_or_error(LinkerSection* section, char* line_cstring
     LineError err = {};
     StringSlice line = slice_from_cstring(line_cstring);
 
-    bool line_has_section_content = process_line(section, line, &defines, &err);
+    LineContent line_content = process_line(section, line, &defines, &err);
     if (err.error_tag) {
         print_line_error("file.s", 1, err, line);
     } else {
-        fprintf(stderr, "%s: %s\n", line_cstring, line_has_section_content ? "ok" : "directive");
+        fprintf(stderr, "%s: %s\n", line_cstring, line_content == LINE_HAS_SECTION_CONTENT ? "ok" : "directive");
     }
 }
 

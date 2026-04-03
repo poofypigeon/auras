@@ -44,7 +44,7 @@ constexpr uint32_t M_B           = 1u << 21;
 constexpr uint32_t M_H           = 1u << 22;
 constexpr uint32_t M_SB          = 1u << 23;
 constexpr size_t   M_RD_BASE     = 24;
-constexpr uint32_t M_OPCODE      = 0b000 << 29;
+constexpr uint32_t M_OPCODE      = 0b000u << 29;
 
 constexpr int64_t M_MAX_OFFSET = (1 << M_OFFSET_BITS) - 1;
 constexpr int64_t M_MIN_OFFSET = -M_MAX_OFFSET - 1;
@@ -226,7 +226,7 @@ Instruction encode_m_type(Tokenizer* line, uint32_t flags, StringToIntMap* defin
     if (!parse_register(token, (uint64_t*)&offset)) {
         *line = tokenizer_at_offset_start;
 
-        offset = parse_expression(line, err, defines);
+        offset = parse_expression(line, defines, err);
         if (err->error_tag) return (Instruction){};
 
         calculate_offset_and_shift_m_type(offset, &offset, &shamt, err);
@@ -278,7 +278,7 @@ Instruction encode_m_type(Tokenizer* line, uint32_t flags, StringToIntMap* defin
     }
 
     size_t shift_start_column = tokenizer_next_token_start(line);
-    shamt = parse_expression(line, err, defines);
+    shamt = parse_expression(line, defines, err);
     if (err->error_tag) return (Instruction){};
     if (shamt < 0) {
         *err = (LineError){
@@ -339,18 +339,18 @@ WRITEBACK:
 // Note: S-Type shares opcode 000 with M-Type but uses different
 // flag combinations (H=1, B=1) to distinguish from memory ops.
 
-constexpr size_t   S_IMM_BASE = 0;
-constexpr size_t   S_IMM_BITS = 8;
-constexpr size_t   S_RSYS_BASE      = 8;
-constexpr uint32_t S_ST             = 1u << 14;
-constexpr uint32_t S_I              = 1u << 15;
-constexpr size_t   S_RS1_BASE       = 16;
-constexpr uint32_t S_B              = 1u << 21;
-constexpr uint32_t S_H              = 1u << 22;
-constexpr size_t   S_RD_BASE        = 24;
-constexpr uint32_t S_OPCODE         = 0b000u << 29;
+constexpr size_t   S_IMM_BASE  = 0;
+constexpr size_t   S_IMM_BITS  = 8;
+constexpr size_t   S_RSYS_BASE = 8;
+constexpr uint32_t S_ST        = 1u << 14;
+constexpr uint32_t S_I         = 1u << 15;
+constexpr size_t   S_RS1_BASE  = 16;
+constexpr uint32_t S_B         = 1u << 21;
+constexpr uint32_t S_H         = 1u << 22;
+constexpr size_t   S_RD_BASE   = 24;
+constexpr uint32_t S_OPCODE    = 0b000u << 29;
 
-constexpr uint32_t S_RSYS_SYSCALL   = 0x3F;
+constexpr uint32_t S_RSYS_SYSCALL = 0x3F;
 constexpr int64_t S_MAX_IMM = (1 << S_IMM_BITS) - 1;
 
 Instruction encode_lsr(Tokenizer* line, StringToIntMap* defines, LineError* err) {
@@ -362,7 +362,7 @@ Instruction encode_lsr(Tokenizer* line, StringToIntMap* defines, LineError* err)
     if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
 
     size_t rsys_start_column = tokenizer_next_token_start(line);
-    int64_t rsys = parse_expression(line, err, defines);
+    int64_t rsys = parse_expression(line, defines, err);
     if (err->error_tag) return (Instruction){};
 
     if (rsys == S_RSYS_SYSCALL) {
@@ -425,7 +425,7 @@ Instruction encode_ssr(Tokenizer* line, StringToIntMap* defines, LineError* err)
     if (!parse_register(token, &imm)) {
         *line = tokenizer_at_operand_start;
 
-        imm = parse_expression(line, err, defines);
+        imm = parse_expression(line, defines, err);
         if (err->error_tag) return (Instruction){};
 
         if (imm < 0 || imm > S_MAX_IMM) {
@@ -448,7 +448,7 @@ Instruction encode_ssr(Tokenizer* line, StringToIntMap* defines, LineError* err)
     if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
 
     size_t rsys_start_column = tokenizer_next_token_start(line);
-    int64_t rsys = parse_expression(line, err, defines);
+    int64_t rsys = parse_expression(line, defines, err);
     if (err->error_tag) return (Instruction){};
 
     if (rsys == S_RSYS_SYSCALL) {
@@ -484,7 +484,7 @@ Instruction encode_syscall(Tokenizer* line, StringToIntMap* defines, LineError* 
     uint32_t machine_word = S_OPCODE|S_H|S_B|(S_RSYS_SYSCALL << S_RSYS_BASE);
 
     size_t comment_start_column = tokenizer_next_token_start(line);
-    int64_t comment = parse_expression(line, err, defines);
+    int64_t comment = parse_expression(line, defines, err);
     if (err->error_tag) return (Instruction){};
 
     if (comment < 0 || comment > S_MAX_IMM) {
@@ -510,12 +510,12 @@ Instruction encode_syscall(Tokenizer* line, StringToIntMap* defines, LineError* 
 //
 // Syntax: mvi <rd>, <imm24>
 
-constexpr size_t   I_IMM_BASE = 0;
-constexpr size_t   I_IMM_BITS = 23;
+constexpr size_t   I_IMM_BASE  = 0;
+constexpr size_t   I_IMM_BITS  = 23;
 constexpr uint32_t I_IMM_MASK  = 0x00FFFFFF;
 constexpr uint32_t I_SIGN_MASK = 0xFF800000;
-constexpr size_t   I_RD_BASE  = 24;
-constexpr uint32_t I_OPCODE = 0b001u << 29;
+constexpr size_t   I_RD_BASE   = 24;
+constexpr uint32_t I_OPCODE    = 0b001u << 29;
 
 constexpr int64_t  I_MAX_IMM = (1 << I_IMM_BITS) - 1;
 constexpr int64_t  I_MIN_IMM = -I_MAX_IMM - 1;
@@ -529,7 +529,7 @@ Instruction encode_i_type(Tokenizer* line, StringToIntMap* defines, LineError* e
     if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
     size_t imm_start_column = tokenizer_next_token_start(line);
 
-    int64_t imm = parse_expression(line, err, defines);
+    int64_t imm = parse_expression(line, defines, err);
     if (err->error_tag) return (Instruction){};
 
     if (imm >= 0) {
@@ -801,7 +801,7 @@ Instruction encode_d_type(Tokenizer* line, uint32_t flags, DVariant variant, Str
 
             *line = tokenizer_at_offset_start;
 
-            imm = parse_expression(line, err, defines);
+            imm = parse_expression(line, defines, err);
             if (err->error_tag) return (Instruction){};
 
             if (machine_word & D_SB) { // sub, cmp
@@ -885,7 +885,7 @@ Instruction encode_d_type(Tokenizer* line, uint32_t flags, DVariant variant, Str
     if (!parse_register(token, (uint64_t*)&shamt)) {
         *line = tokenizer_at_offset_start;
 
-        shamt = parse_expression(line, err, defines);
+        shamt = parse_expression(line, defines, err);
         if (err->error_tag) return (Instruction){};
 
         if ((shamt == 0) && (machine_word & D_D)) {
@@ -1037,7 +1037,7 @@ Instruction encode_mvi32(Tokenizer* line, StringToIntMap* defines, LineError* er
     if (!expect_token(line, TOKEN_COMMA, err)) return (Instruction){};
     size_t expr_start_column = tokenizer_next_token_start(line);
     
-    int64_t imm = parse_expression(line, err, defines);
+    int64_t imm = parse_expression(line, defines, err);
     if (err->error_tag) return (Instruction){};
     
     if (imm > (int64_t)UINT32_MAX || imm < (int64_t)INT32_MIN) {
